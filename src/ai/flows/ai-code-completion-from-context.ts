@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview AI code completion suggestions based on the surrounding code.
+ * @fileOverview AI code completion suggestions based on the surrounding code and optionally other project files.
  *
  * - aiCodeCompletionFromContext - A function that handles the code completion process.
  * - AICodeCompletionFromContextInput - The input type for the aiCodeCompletionFromContext function.
@@ -21,6 +21,10 @@ const AICodeCompletionFromContextInputSchema = z.object({
   programmingLanguage: z
     .string()
     .describe('The programming language of the code snippet.'),
+  otherFiles: z.array(z.object({
+    filePath: z.string().describe('The path of the other file, e.g., /src/components/button.tsx.'),
+    fileContent: z.string().describe('The full text content of the other file.')
+  })).optional().describe('Optional. Content of other relevant files to provide broader context.'),
 });
 export type AICodeCompletionFromContextInput = z.infer<
   typeof AICodeCompletionFromContextInputSchema
@@ -45,17 +49,31 @@ const prompt = ai.definePrompt({
   name: 'aiCodeCompletionFromContextPrompt',
   input: {schema: AICodeCompletionFromContextInputSchema},
   output: {schema: AICodeCompletionFromContextOutputSchema},
-  prompt: `You are an AI code completion assistant. Given the surrounding code snippet, 
-you will suggest code completions that are relevant to the context.
+  prompt: `You are an AI code completion assistant. Given the surrounding code snippet,
+and potentially other project files for context, you will suggest code completions
+that are relevant.
 
 Programming Language: {{{programmingLanguage}}}
-Code Snippet:
-` +
-'```\n{{{codeSnippet}}}\n```' +
-`
 
-Cursor Position: {{{cursorPosition}}}
+Current File Content (cursor at character position {{{cursorPosition}}}):
+\`\`\`
+{{{codeSnippet}}}
+\`\`\`
+{{#if otherFiles}}
 
+For additional context, here are the contents of other relevant files in the project:
+{{#each otherFiles}}
+---
+File Path: {{{this.filePath}}}
+Content:
+\`\`\`
+{{{this.fileContent}}}
+\`\`\`
+---
+{{/each}}
+{{/if}}
+
+Provide code completion suggestions based on all the provided context.
 Suggestions:
 `,
 });
@@ -71,3 +89,4 @@ const aiCodeCompletionFromContextFlow = ai.defineFlow(
     return output!;
   }
 );
+
