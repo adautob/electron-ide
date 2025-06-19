@@ -46,6 +46,10 @@ const chatPrompt = ai.definePrompt({
   Assist the user with their programming questions, code explanations, or general queries.
   Maintain a conversational and helpful tone.
 
+  It's important to understand that you do not have direct access to the user's file system.
+  However, for the purpose of this conversation, the user may provide you with the content of specific project files relevant to their query.
+  When project files are provided (see below), you should use their content to answer questions about the code within those files.
+
   {{#if history}}
   Conversation History:
   {{#each history}}
@@ -54,7 +58,7 @@ const chatPrompt = ai.definePrompt({
   {{/if}}
 
   {{#if projectFiles}}
-  The user has the following project files open or relevant to this conversation. You can refer to them if the user's query is about their code:
+  The following project file contents have been provided to you for context. You can refer to them if the user's query is about their code:
   {{#each projectFiles}}
   ---
   File Path: {{{this.filePath}}}
@@ -81,3 +85,4 @@ const chatFlow = ai.defineFlow(
     return output!;
   }
 );
+
