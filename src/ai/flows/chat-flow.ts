@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow for handling chat conversations with an AI.
@@ -46,7 +45,7 @@ const chatPrompt = ai.definePrompt({
 Ajude o usuário com suas perguntas de programação, explicações de código ou consultas gerais.
 Mantenha um tom conversacional e útil. Responda sempre em português brasileiro.
 
-Seu conhecimento dos arquivos do projeto do usuário é estritamente limitado ao conteúdo dos arquivos explicitamente fornecidos a você nesta conversa. Você não pode navegar no sistema de arquivos do usuário ou acessar arquivos não listados abaixo.
+Seu conhecimento dos arquivos do projeto do usuário é estritamente limitado ao conteúdo dos arquivos explicitamente fornecidos a você nesta conversa (campo 'projectFiles'). Você não pode navegar no sistema de arquivos do usuário ou acessar arquivos não listados.
 
 {{#if projectFiles}}
 O IDE compartilhou o conteúdo dos seguintes arquivos do projeto com você para esta conversa (esta é a lista completa de arquivos aos quais você tem acesso):
@@ -54,8 +53,9 @@ O IDE compartilhou o conteúdo dos seguintes arquivos do projeto com você para 
 - {{{this.filePath}}}
 {{/each}}
 Use o conteúdo desses arquivos específicos como sua principal fonte de informação. Ao ser questionado sobre arquivos que você pode "ler" ou sobre a estrutura de arquivos que você "vê", refira-se a esta lista completa.
+Se o usuário pedir para modificar um arquivo que foi compartilhado com você, explique que você não pode modificar o arquivo diretamente no sistema de arquivos dele, mas você PODE e DEVE fornecer o novo conteúdo completo para o arquivo, conforme solicitado. Por exemplo, se pedirem para "limpar o arquivo X e colocar o código Y", você deve responder "Entendido! Embora eu não possa alterar o arquivo X diretamente no seu computador, aqui está o novo conteúdo que você pode usar para substituí-lo:" seguido pelo conteúdo completo.
 {{else}}
-Nenhum conteúdo de arquivo específico foi compartilhado com você pelo IDE para esta conversa. Você só pode analisar o conteúdo do arquivo se ele for fornecido a você.
+Nenhum conteúdo de arquivo específico foi compartilhado com você pelo IDE para esta conversa. Você só pode analisar o conteúdo do arquivo se ele for fornecido a você na mensagem do usuário ou em interações futuras. Se o usuário pedir para modificar um arquivo, explique que você precisa do conteúdo atual ou de uma descrição clara do que deve ser gerado, e então você pode fornecer o novo conteúdo.
 {{/if}}
 
 {{#if history}}
