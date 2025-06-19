@@ -9,6 +9,7 @@ import { IdeHeader } from '@/components/ide/ide-header';
 import { PreferencesDialog } from '@/components/ide/preferences-dialog';
 import { TerminalResizableWrapper } from '@/components/ide/terminal-resizable-wrapper';
 import { AiChatPanel } from '@/components/ide/ai-chat-panel';
+import { FileExplorerResizableWrapper } from '@/components/ide/file-explorer-resizable-wrapper';
 import type { FileOrFolder } from '@/types';
 import { generateCodeFromComment } from '@/ai/flows/ai-code-completion';
 import { aiCodeCompletionFromContext, type AICodeCompletionFromContextInput } from '@/ai/flows/ai-code-completion-from-context';
@@ -961,17 +962,19 @@ export default function IdePage() {
         activeFile={activeFile}
       />
       <main className="flex flex-1 overflow-hidden">
-        <FileExplorer
-          files={files}
-          onSelectFile={handleSelectFile}
-          selectedFilePath={activeFile?.path || null}
-          onCreateFile={(parentPath) => handleCreateItem('file', parentPath)}
-          onCreateFolder={(parentPath) => handleCreateItem('folder', parentPath)}
-          onRenameItem={handleRenameItem}
-          onDeleteItem={handleDeleteItem}
-          openedDirectoryName={openedDirectoryName}
-          allFiles={files} // Pass allFiles for context menu logic
-        />
+        <FileExplorerResizableWrapper>
+          <FileExplorer
+            files={files}
+            onSelectFile={handleSelectFile}
+            selectedFilePath={activeFile?.path || null}
+            onCreateFile={(parentPath) => handleCreateItem('file', parentPath)}
+            onCreateFolder={(parentPath) => handleCreateItem('folder', parentPath)}
+            onRenameItem={handleRenameItem}
+            onDeleteItem={handleDeleteItem}
+            openedDirectoryName={openedDirectoryName}
+            allFiles={files} // Pass allFiles for context menu logic
+          />
+        </FileExplorerResizableWrapper>
         <div className="flex flex-1 flex-col overflow-hidden">
           <CodeEditor
             content={editorContent}

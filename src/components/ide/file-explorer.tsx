@@ -87,7 +87,7 @@ export function FileExplorer({
   const canPerformFileActions = !!openedDirectoryName;
 
   return (
-    <div className="w-64 bg-sidebar text-sidebar-foreground flex flex-col border-r border-sidebar-border shrink-0">
+    <div className="flex flex-col h-full"> {/* Removed w-64, bg-sidebar, text-sidebar-foreground, border-r, border-sidebar-border, shrink-0 */}
       <div className="p-2 border-b border-sidebar-border">
         <div className="flex items-center justify-between px-2 py-1">
           <h2 className="text-sm font-semibold font-headline">
@@ -128,4 +128,3 @@ export function FileExplorer({
     </div>
   );
 }
-
