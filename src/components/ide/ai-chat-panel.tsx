@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
-import { chatWithAI, type ChatMessage as AIChatMessage, type ChatInput } from '@/ai/flows/chat-flow'; 
+import { chatWithAI, type ChatMessage as AIChatMessage, type ChatInput } from '@/ai/flows/chat-flow';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { FileOrFolder } from '@/types';
@@ -45,23 +45,47 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
     setInputValue(e.target.value);
   };
 
-  const prepareProjectFilesForAI = (allProjectFiles: FileOrFolder[]): ChatInput['projectFiles'] => {
+  const prepareProjectFilesForAI = async (allProjectFiles: FileOrFolder[]): Promise<ChatInput['projectFiles']> => {
     const filesForAI: NonNullable<ChatInput['projectFiles']> = [];
     
-    const collectFilesRecursive = (items: FileOrFolder[]) => {
-      for (const item of items) {
-        if (item.type === 'file' && item.content) { // Only send files with loaded content
+    const processItem = async (item: FileOrFolder) => {
+      if (item.type === 'file') {
+        let contentToUse = item.content;
+        if (!contentToUse && item.handle && item.handle.kind === 'file') {
+          try {
+            const fsFileHandle = item.handle as FileSystemFileHandle;
+            const fileData = await fsFileHandle.getFile();
+            contentToUse = await fileData.text();
+          } catch (err) {
+            console.warn(`Could not read content for AI from file: ${item.path}`, err);
+            // Optionally send a placeholder or skip if content is crucial
+            // For now, we'll send it without content if reading fails
+          }
+        }
+        // Only add if content is available or was successfully read
+        if (contentToUse) {
           filesForAI.push({
             filePath: item.path,
-            fileContent: item.content,
+            fileContent: contentToUse,
+          });
+        } else if (item.content === '') { // Handle explicitly empty files
+           filesForAI.push({
+            filePath: item.path,
+            fileContent: '',
           });
         }
-        if (item.children) {
-          collectFilesRecursive(item.children);
+      }
+      if (item.children) {
+        for (const child of item.children) {
+          await processItem(child);
         }
       }
     };
-    collectFilesRecursive(allProjectFiles);
+
+    for (const item of allProjectFiles) {
+      await processItem(item);
+    }
+    
     return filesForAI.length > 0 ? filesForAI : undefined;
   };
 
@@ -82,7 +106,7 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
 
     try {
       const historyForAI: AIChatMessage[] = messages.map(({ role, content }) => ({ role, content }));
-      const currentProjectFilesForAI = prepareProjectFilesForAI(projectFiles);
+      const currentProjectFilesForAI = await prepareProjectFilesForAI(projectFiles);
       
       const chatInput: ChatInput = {
          userMessage: trimmedInput, 
@@ -171,3 +195,4 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
     </Card>
   );
 }
+
