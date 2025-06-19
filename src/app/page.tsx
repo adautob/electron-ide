@@ -20,6 +20,7 @@ export default function IdePage() {
   const [terminalOutput, setTerminalOutput] = useState<string[]>(['Welcome to Electron IDE Terminal!']);
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [openedDirectoryName, setOpenedDirectoryName] = useState<string | null>(null);
+  const [rootDirectoryHandle, setRootDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const { toast } = useToast();
 
   const processDirectory = async (directoryHandle: FileSystemDirectoryHandle, currentPath: string = ''): Promise<FileOrFolder[]> => {
@@ -66,6 +67,7 @@ export default function IdePage() {
         return;
       }
       const directoryHandle = await window.showDirectoryPicker();
+      setRootDirectoryHandle(directoryHandle);
       const processedFiles = await processDirectory(directoryHandle);
       setFiles(processedFiles);
       setActiveFile(null);
@@ -112,6 +114,7 @@ export default function IdePage() {
       }
     } else { 
       setActiveFile(file); 
+      setEditorContent(''); // Clear editor if a folder is selected
     }
   }, []);
 
@@ -147,6 +150,12 @@ export default function IdePage() {
 
     try {
       const fileHandle = activeFile.handle as FileSystemFileHandle;
+      // Request permission before creating writable, in case it was revoked
+      const permission = await fileHandle.requestPermission({ mode: 'readwrite' });
+      if (permission !== 'granted') {
+        toast({ variant: 'destructive', title: 'Permissão Negada', description: 'Permissão para salvar o arquivo foi negada.' });
+        return;
+      }
       const writable = await fileHandle.createWritable();
       await writable.write(editorContent);
       await writable.close();
@@ -156,11 +165,11 @@ export default function IdePage() {
       });
     } catch (error) {
       console.error('Erro ao salvar arquivo:', error);
-      if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) {
+      if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError' || error.name === 'NotFoundError')) {
            toast({
               variant: 'destructive',
-              title: 'Permissão Negada',
-              description: 'Permissão para salvar o arquivo foi negada. Você pode precisar conceder permissões novamente.',
+              title: 'Permissão ou Erro ao Salvar',
+              description: 'Permissão negada ou arquivo não encontrado. Tente novamente ou reabra a pasta.',
           });
       } else {
           toast({
@@ -171,6 +180,151 @@ export default function IdePage() {
       }
     }
   };
+
+  const getDirectoryHandleByPath = useCallback(async (path: string | null, currentLevelFiles: FileOrFolder[], currentRootHandle: FileSystemDirectoryHandle | null): Promise<FileSystemDirectoryHandle | null> => {
+    if (!currentRootHandle) return null;
+    if (path === null || path === '' || path === openedDirectoryName) {
+      return currentRootHandle;
+    }
+
+    const pathSegments = path.split('/');
+    let currentHandle: FileSystemDirectoryHandle | null = currentRootHandle;
+    
+    for (const segment of pathSegments) {
+        if (!currentHandle) return null;
+        try {
+            const entry = await currentHandle.getDirectoryHandle(segment);
+            currentHandle = entry;
+        } catch (e) {
+            // If it's not a directory or doesn't exist at this level of check
+            // This function expects to find directory handles based on a path string from FileOrFolder structure
+            // For simplicity, we assume paths given are valid directory paths from the FileOrFolder state
+            // A more robust find would traverse the FileOrFolder state to get the handle
+             const findInFileOrFolder = (items: FileOrFolder[], targetPath: string): FileSystemDirectoryHandle | undefined => {
+                for (const item of items) {
+                    if (item.path === targetPath && item.type === 'folder' && item.handle?.kind === 'directory') {
+                        return item.handle as FileSystemDirectoryHandle;
+                    }
+                    if (item.children) {
+                        const found = findInFileOrFolder(item.children, targetPath);
+                        if (found) return found;
+                    }
+                }
+                return undefined;
+            };
+            return findInFileOrFolder(files, path);
+        }
+    }
+    return currentHandle;
+  }, [files, openedDirectoryName]);
+
+  const refreshDirectoryInState = async (directoryPath: string | null, dirHandle: FileSystemDirectoryHandle) => {
+    const newChildren = await processDirectory(dirHandle, directoryPath || '');
+    if (directoryPath === null || directoryPath === openedDirectoryName || directoryPath === '') { // Refreshing root
+      setFiles(newChildren);
+    } else { // Refreshing a subdirectory
+      setFiles(prevFiles => {
+        const updateChildren = (items: FileOrFolder[]): FileOrFolder[] => {
+          return items.map(item => {
+            if (item.path === directoryPath && item.type === 'folder') {
+              return { ...item, children: newChildren };
+            }
+            if (item.children) {
+              return { ...item, children: updateChildren(item.children) };
+            }
+            return item;
+          });
+        };
+        return updateChildren(prevFiles);
+      });
+    }
+  };
+  
+  const handleCreateItem = async (type: 'file' | 'folder', targetDirectoryPath: string | null) => {
+    if (!rootDirectoryHandle) {
+      toast({ variant: "destructive", title: "Erro", description: "Nenhuma pasta aberta para criar itens." });
+      return;
+    }
+
+    const itemName = prompt(`Digite o nome para ${type === 'file' ? 'o novo arquivo' : 'a nova pasta'}:`);
+    if (!itemName || itemName.trim() === '') {
+      toast({ title: "Cancelado", description: `Criação de ${type} cancelada.` });
+      return;
+    }
+
+    const parentDirHandle = await getDirectoryHandleByPath(targetDirectoryPath, files, rootDirectoryHandle);
+
+    if (!parentDirHandle) {
+      toast({ variant: "destructive", title: "Erro", description: `Diretório pai "${targetDirectoryPath || openedDirectoryName}" não encontrado.` });
+      return;
+    }
+    
+    // Check for existing item
+    try {
+        if (type === 'file') {
+            await parentDirHandle.getFileHandle(itemName);
+        } else {
+            await parentDirHandle.getDirectoryHandle(itemName);
+        }
+        toast({ variant: "destructive", title: "Erro ao Criar", description: `Um item chamado "${itemName}" já existe.` });
+        return;
+    } catch (e) {
+        // Expected if item does not exist, continue to creation
+        if (!(e instanceof DOMException && e.name === 'NotFoundError')) {
+            console.error("Erro ao verificar existência:", e);
+            toast({ variant: "destructive", title: "Erro", description: "Falha ao verificar existência do item."});
+            return;
+        }
+    }
+
+    try {
+      let newItemHandle: FileSystemFileHandle | FileSystemDirectoryHandle;
+      if (type === 'file') {
+        newItemHandle = await parentDirHandle.getFileHandle(itemName, { create: true });
+      } else {
+        newItemHandle = await parentDirHandle.getDirectoryHandle(itemName, { create: true });
+      }
+
+      await refreshDirectoryInState(targetDirectoryPath, parentDirHandle);
+      
+      toast({ title: `${type === 'file' ? 'Arquivo Criado' : 'Pasta Criada'}`, description: `"${itemName}" foi criado com sucesso.` });
+
+      if (type === 'file' && newItemHandle.kind === 'file') {
+        const newFilePath = targetDirectoryPath ? `${targetDirectoryPath}/${itemName}` : itemName;
+        // We need to find the newly created FileOrFolder object to pass to handleSelectFile
+        // This requires searching through the *updated* files state
+        // For now, let's just set editor to blank and activeFile to a temporary representation
+        // A better way would be to get the new FileOrFolder from refreshed state.
+         const findAndSelectNewFile = (items: FileOrFolder[], path: string): FileOrFolder | null => {
+          for (const item of items) {
+            if (item.path === path && item.type === 'file') return item;
+            if (item.children) {
+              const found = findAndSelectNewFile(item.children, path);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        
+        // Trigger a re-render cycle to ensure files state is updated before searching
+        setTimeout(async () => {
+            const fileToSelect = findAndSelectNewFile(files, newFilePath);
+            if (fileToSelect) {
+                 await handleSelectFile(fileToSelect);
+            } else {
+                // Fallback if not found immediately (state update might be async)
+                setActiveFile({ id: newFilePath, name: itemName, type: 'file', path: newFilePath, handle: newItemHandle as FileSystemFileHandle });
+                setEditorContent(''); 
+            }
+        }, 100); // Small delay
+      }
+
+    } catch (error) {
+      console.error(`Erro ao criar ${type}:`, error);
+      toast({ variant: "destructive", title: `Erro ao Criar ${type}`, description: `Não foi possível criar "${itemName}". Verifique as permissões.` });
+    }
+  };
+
 
   const handleCommandSubmit = useCallback((command: string) => {
     setTerminalOutput(prev => [...prev, `$ ${command}`]);
@@ -205,10 +359,7 @@ export default function IdePage() {
   const handleCompleteFromContext = async (codeSnippet: string, cursorPosition: number) => {
     toast({ title: "AI", description: "Gerando autocompletar..." });
     try {
-      // Exemplo de como enviar outros arquivos para contexto (opcional, pode ser adaptado):
-      // const otherFilesContext = files.filter(f => f.type === 'file' && f.id !== activeFile?.id).slice(0, 2) // Limitar para não sobrecarregar
-      //   .map(f => ({ filePath: f.path, fileContent: f.content || '' }));
-      const result = await aiCodeCompletionFromContext({ codeSnippet, cursorPosition, programmingLanguage: 'typescript' /*, otherFiles: otherFilesContext */ });
+      const result = await aiCodeCompletionFromContext({ codeSnippet, cursorPosition, programmingLanguage: 'typescript' });
       if (result.suggestions && result.suggestions.length > 0) {
         const suggestion = result.suggestions[0];
         setEditorContent(prev => {
@@ -225,8 +376,6 @@ export default function IdePage() {
   };
 
   const logAction = (action: string, path: string | null) => toast({ title: "Ação de Arquivo (Demo)", description: `${action}: ${path || 'raiz'} (não salva no disco)`});
-  const handleCreateFile = (parentPath: string | null) => logAction("Criar Arquivo em", parentPath);
-  const handleCreateFolder = (parentPath: string | null) => logAction("Criar Pasta em", parentPath);
   const handleRenameItem = (itemPath: string) => logAction("Renomear Item", itemPath);
   const handleDeleteItem = (itemPath: string) => logAction("Deletar Item", itemPath);
 
@@ -243,11 +392,12 @@ export default function IdePage() {
           files={files}
           onSelectFile={handleSelectFile}
           selectedFilePath={activeFile?.path || null}
-          onCreateFile={handleCreateFile}
-          onCreateFolder={handleCreateFolder}
+          onCreateFile={(parentPath) => handleCreateItem('file', parentPath)}
+          onCreateFolder={(parentPath) => handleCreateItem('folder', parentPath)}
           onRenameItem={handleRenameItem}
           onDeleteItem={handleDeleteItem}
           openedDirectoryName={openedDirectoryName}
+          allFiles={files}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <CodeEditor
@@ -255,7 +405,7 @@ export default function IdePage() {
             onContentChange={handleEditorChange}
             onGenerateFromComment={handleGenerateFromComment}
             onCompleteFromContext={handleCompleteFromContext}
-            fileName={activeFile?.name || (files.length === 0 ? "Nenhum arquivo aberto" : "Selecione um arquivo")}
+            fileName={activeFile?.name || (files.length === 0 && !openedDirectoryName ? "Nenhum arquivo aberto" : (openedDirectoryName && !activeFile ? openedDirectoryName : "Selecione um arquivo"))}
           />
           <TerminalResizableWrapper initialHeight={180} minHeight={80} maxHeight={400}>
             <IntegratedTerminal
@@ -269,5 +419,4 @@ export default function IdePage() {
     </div>
   );
 }
-
     
