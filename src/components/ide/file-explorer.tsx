@@ -13,10 +13,10 @@ interface FileExplorerProps {
   selectedFilePath: string | null;
   onCreateFile: (targetDirectoryPath: string | null) => void;
   onCreateFolder: (targetDirectoryPath: string | null) => void;
-  onRenameItem: (itemPath: string) => void; 
+  onRenameItem: (itemPath: string) => void;
   onDeleteItem: (itemPath: string) => void;
   openedDirectoryName?: string | null;
-  allFiles: FileOrFolder[]; 
+  allFiles: FileOrFolder[];
 }
 
 const findItemByPath = (items: FileOrFolder[], path: string): FileOrFolder | null => {
@@ -36,7 +36,7 @@ const findItemByPath = (items: FileOrFolder[], path: string): FileOrFolder | nul
 
 const getParentPath = (itemPath: string): string | null => {
   if (!itemPath.includes('/')) {
-    return null; 
+    return null;
   }
   return itemPath.substring(0, itemPath.lastIndexOf('/'));
 };
@@ -51,21 +51,21 @@ export function FileExplorer({
   onRenameItem,
   onDeleteItem,
   openedDirectoryName,
-  allFiles 
+  allFiles
 }: FileExplorerProps) {
-  
+
   const determineTargetDirectoryPath = (): string | null => {
     if (selectedFilePath) {
       const selectedItem = findItemByPath(allFiles, selectedFilePath);
       if (selectedItem) {
         if (selectedItem.type === 'folder') {
           return selectedItem.path;
-        } else { 
+        } else {
           return getParentPath(selectedItem.path);
         }
       }
     }
-    return openedDirectoryName ? null : null; 
+    return openedDirectoryName ? null : null;
   };
 
   const handleCreateFileClick = () => {
@@ -80,18 +80,25 @@ export function FileExplorer({
 
   const handleRenameClick = () => {
     if (selectedFilePath) {
-      onRenameItem(selectedFilePath); 
+      onRenameItem(selectedFilePath);
     }
   };
-  
+
+  const handleDeleteClick = () => {
+    if (selectedFilePath) {
+      onDeleteItem(selectedFilePath);
+    }
+  };
+
   const canPerformFileActions = !!openedDirectoryName;
+  const explorerTitle = openedDirectoryName ? (openedDirectoryName.split('/').pop()?.toUpperCase() || "EXPLORER") : "EXPLORER";
 
   return (
-    <div className="flex flex-col h-full"> {/* Removed w-64, bg-sidebar, text-sidebar-foreground, border-r, border-sidebar-border, shrink-0 */}
+    <div className="flex flex-col h-full">
       <div className="p-2 border-b border-sidebar-border">
         <div className="flex items-center justify-between px-2 py-1">
           <h2 className="text-sm font-semibold font-headline">
-            {openedDirectoryName ? openedDirectoryName.toUpperCase() : "EXPLORER"}
+            {explorerTitle}
           </h2>
         </div>
         { openedDirectoryName && (
@@ -102,10 +109,10 @@ export function FileExplorer({
             <Button variant="ghost" size="icon" className="h-7 w-7" title="Nova Pasta" onClick={handleCreateFolderClick} disabled={!canPerformFileActions}>
               <FolderPlus size={16} />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" title="Renomear" onClick={handleRenameClick} disabled={!selectedFilePath || !canPerformFileActions}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" title="Renomear" onClick={handleRenameClick} disabled={!selectedFilePath || !canPerformFileActions || selectedFilePath === openedDirectoryName}>
               <Edit3 size={16} />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive" title="Deletar" onClick={() => selectedFilePath && onDeleteItem(selectedFilePath)} disabled={!selectedFilePath || !canPerformFileActions}>
+            <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive" title="Deletar" onClick={handleDeleteClick} disabled={!selectedFilePath || !canPerformFileActions || selectedFilePath === openedDirectoryName}>
               <Trash2 size={16} />
             </Button>
           </div>
