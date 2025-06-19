@@ -13,13 +13,12 @@ interface FileExplorerProps {
   selectedFilePath: string | null;
   onCreateFile: (targetDirectoryPath: string | null) => void;
   onCreateFolder: (targetDirectoryPath: string | null) => void;
-  onRenameItem: (itemPath: string) => void;
+  onRenameItem: (itemPath: string) => void; // Changed to only pass itemPath
   onDeleteItem: (itemPath: string) => void;
   openedDirectoryName?: string | null;
-  allFiles: FileOrFolder[]; // To find selected item details
+  allFiles: FileOrFolder[]; 
 }
 
-// Helper function to find an item by path in a nested structure
 const findItemByPath = (items: FileOrFolder[], path: string): FileOrFolder | null => {
   for (const item of items) {
     if (item.path === path) {
@@ -35,10 +34,9 @@ const findItemByPath = (items: FileOrFolder[], path: string): FileOrFolder | nul
   return null;
 };
 
-// Helper function to get the parent path of a file/folder path
 const getParentPath = (itemPath: string): string | null => {
   if (!itemPath.includes('/')) {
-    return null; // Item is at root
+    return null; 
   }
   return itemPath.substring(0, itemPath.lastIndexOf('/'));
 };
@@ -53,7 +51,7 @@ export function FileExplorer({
   onRenameItem,
   onDeleteItem,
   openedDirectoryName,
-  allFiles // Use this prop
+  allFiles 
 }: FileExplorerProps) {
   
   const determineTargetDirectoryPath = (): string | null => {
@@ -62,14 +60,12 @@ export function FileExplorer({
       if (selectedItem) {
         if (selectedItem.type === 'folder') {
           return selectedItem.path;
-        } else { // It's a file
+        } else { 
           return getParentPath(selectedItem.path);
         }
       }
     }
-    // If no selection or selected item not found, and a folder is open, target the root.
-    // openedDirectoryName implies root is available. If it's null, it means root of the opened folder.
-    return openedDirectoryName ? null : null; // null indicates root of the currently opened folder
+    return openedDirectoryName ? null : null; 
   };
 
   const handleCreateFileClick = () => {
@@ -80,6 +76,12 @@ export function FileExplorer({
   const handleCreateFolderClick = () => {
     const targetPath = determineTargetDirectoryPath();
     onCreateFolder(targetPath);
+  };
+
+  const handleRenameClick = () => {
+    if (selectedFilePath) {
+      onRenameItem(selectedFilePath); // Just pass the path
+    }
   };
   
   const canPerformFileActions = !!openedDirectoryName;
@@ -100,7 +102,7 @@ export function FileExplorer({
             <Button variant="ghost" size="icon" className="h-7 w-7" title="Nova Pasta" onClick={handleCreateFolderClick} disabled={!canPerformFileActions}>
               <FolderPlus size={16} />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" title="Renomear (Demo)" onClick={() => selectedFilePath && onRenameItem(selectedFilePath)} disabled={!selectedFilePath || !canPerformFileActions}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" title="Renomear" onClick={handleRenameClick} disabled={!selectedFilePath || !canPerformFileActions}>
               <Edit3 size={16} />
             </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive" title="Deletar (Demo)" onClick={() => selectedFilePath && onDeleteItem(selectedFilePath)} disabled={!selectedFilePath || !canPerformFileActions}>
@@ -126,3 +128,4 @@ export function FileExplorer({
     </div>
   );
 }
+
