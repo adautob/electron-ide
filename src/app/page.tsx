@@ -576,7 +576,7 @@ export default function IdePage() {
 
     const parts = command.trim().split(/\s+/);
     const cmd = parts[0]?.toLowerCase();
-    const args = parts.slice(1);
+    const rawArgs = parts.slice(1);
 
     let newOutputLines: string[] = [];
 
@@ -597,7 +597,7 @@ export default function IdePage() {
         newOutputLines.push('  mkdir <name>           - Create a new directory.');
         newOutputLines.push('  touch <name>           - Create a new empty file.');
         newOutputLines.push('  cat <filename>         - Display file content.');
-        newOutputLines.push('  mv <oldname> <newname> - Rename a file or folder.');
+        newOutputLines.push('  mv <oldname> <newname> - Rename a file or folder (within CWD, oldname cannot have spaces).');
         newOutputLines.push('  rm <file>              - Delete a file.');
         newOutputLines.push('  rm -rf <folder>        - Delete a folder and its contents.');
         newOutputLines.push('  clear                  - Clear the terminal screen.');
@@ -631,12 +631,13 @@ export default function IdePage() {
       }
       case 'cd': {
         if (!openedDirectoryName) break;
-        if (args.length === 0 || args[0] === '~' || args[0] === '/') {
+        const targetDirName = rawArgs.join(' ');
+        if (rawArgs.length === 0 || targetDirName === '~' || targetDirName === '/') {
           setTerminalCwdPath(null);
           newOutputLines.push(`Navigating to: ${openedDirectoryName.split('/').pop() || '~'}`);
           break;
         }
-        const targetDirName = args[0];
+        
         if (targetDirName === '..') {
           if (terminalCwdPath === null) {
             newOutputLines.push(`Already at ${openedDirectoryName.split('/').pop() || '~'}.`);
@@ -673,12 +674,12 @@ export default function IdePage() {
       }
       case 'mkdir':
       case 'touch': {
-        if (args.length === 0) {
+        if (rawArgs.length === 0) {
           newOutputLines.push(`${cmd}: missing operand`);
           newOutputLines.push(`Try: ${cmd} <name>`);
           break;
         }
-        const itemName = args[0];
+        const itemName = rawArgs.join(' ');
         const success = await handleCreateFileSystemItemInternal(cmd === 'mkdir' ? 'folder' : 'file', itemName, terminalCwdPath);
         if (success) {
             // Message already shown by toast
@@ -690,11 +691,11 @@ export default function IdePage() {
             newOutputLines.push('cat: No folder open.');
             break;
         }
-        if (args.length === 0) {
+        if (rawArgs.length === 0) {
             newOutputLines.push('cat: missing filename');
             break;
         }
-        const fileName = args[0];
+        const fileName = rawArgs.join(' ');
         const baseReadPath = terminalCwdPath || openedDirectoryName;
         const fullPathToRead = fileName.startsWith(openedDirectoryName + '/') || fileName.includes('/')
             ? (fileName.startsWith('/') ? openedDirectoryName + fileName : fileName) // Handle absolute-like paths from root
@@ -746,13 +747,16 @@ export default function IdePage() {
           newOutputLines.push('mv: No folder open.');
           break;
         }
-        if (args.length < 2) {
+        if (rawArgs.length < 2) {
           newOutputLines.push('mv: missing destination operand after source');
           newOutputLines.push(`Try: mv <oldname> <newname>`);
           break;
         }
-        const oldName = args[0];
-        const newName = args[1];
+        // For simplicity, 'mv' in the terminal will assume oldname does not have spaces.
+        // newname can have spaces.
+        const oldName = rawArgs[0];
+        const newName = rawArgs.slice(1).join(' ');
+
 
         if (oldName === '.' || oldName === '..') {
             newOutputLines.push(`mv: cannot rename '${oldName}': Invalid source name.`);
@@ -772,8 +776,8 @@ export default function IdePage() {
         if (success) {
             // Toast handles success message
         } else {
-            // Toast handles error, or we can add a generic failure message here if needed
-            // Potentially add: newOutputLines.push(`mv: failed to rename '${oldName}' to '${newName}'.`);
+            // Toast handles error.
+            // newOutputLines.push(`mv: failed to rename '${oldName}' to '${newName}'.`);
         }
         break;
       }
@@ -782,7 +786,7 @@ export default function IdePage() {
           newOutputLines.push('rm: No folder open.');
           break;
         }
-        if (args.length === 0) {
+        if (rawArgs.length === 0) {
           newOutputLines.push('rm: missing operand');
           break;
         }
@@ -790,18 +794,19 @@ export default function IdePage() {
         let targetName: string;
         let isRecursiveDelete = false;
 
-        if (args[0] === '-rf') {
-          if (args.length < 2) {
+        if (rawArgs[0] === '-rf') {
+          if (rawArgs.length < 2) {
             newOutputLines.push('rm: missing operand after -rf');
             break;
           }
-          targetName = args[1];
+          targetName = rawArgs.slice(1).join(' ');
           isRecursiveDelete = true;
         } else {
-          targetName = args[0];
-          if (args.includes("-rf") && args.indexOf("-rf") !== 0) {
-            newOutputLines.push('rm: -rf option must precede the target name if used.');
-            break;
+          targetName = rawArgs.join(' ');
+          // Check if -rf was misplaced
+          if (targetName.includes("-rf") && !targetName.startsWith("-rf ")) {
+             newOutputLines.push('rm: -rf option must precede the target name if used and be separated by a space.');
+             break;
           }
         }
 
@@ -896,30 +901,39 @@ export default function IdePage() {
   }, [files, openedDirectoryName, terminalCwdPath, getTerminalPromptDisplay, toast, handleCreateFileSystemItemInternal, handleSelectFile, rootDirectoryHandle, activeFile, getDirectoryHandleByPath, refreshDirectoryInState, handleRenameItem]);
 
   const handleTerminalTabPress = useCallback(async (currentFullInput: string): Promise<string | null> => {
-    const originalInputForPrompt = currentFullInput; 
+    const originalInputForPrompt = currentFullInput;
   
     const inputEndsWithSpace = currentFullInput.endsWith(' ');
     const parts = currentFullInput.trim().split(/\s+/).filter(p => p.length > 0);
   
     if (parts.length === 0 || (parts.length === 1 && !inputEndsWithSpace)) {
-      const commandPrefix = parts[0] || ""; 
+      const commandPrefix = parts[0] || "";
       const matchingCommands = KNOWN_COMMANDS.filter(cmd => cmd.startsWith(commandPrefix));
   
       if (matchingCommands.length === 1) {
         return matchingCommands[0] + ' ';
-      } else if (matchingCommands.length > 0) { 
+      } else if (matchingCommands.length > 0) {
         setTerminalOutput(prev => [...prev, `\n${matchingCommands.join('  ')}`, `${getTerminalPromptDisplay()} ${originalInputForPrompt}`]);
-        return originalInputForPrompt; 
+        return originalInputForPrompt;
       }
-      return originalInputForPrompt; 
+      return originalInputForPrompt;
     }
   
     const commandName = parts[0] as CommandName;
     if (COMMANDS_TAKING_ARGS.includes(commandName) || (commandName === 'ls' && parts.length >=1) ) {
-      const argPrefix = inputEndsWithSpace ? "" : (parts[parts.length - 1] || "");
-  
+      // For argument completion, we need to reconstruct the current argument prefix,
+      // especially if it contains spaces.
+      let argPrefix = "";
+      if (!inputEndsWithSpace) {
+        const commandAndSpaceLength = commandName.length + (parts.length > 1 ? 1:0); // +1 for the space after command
+        const allArgsString = currentFullInput.substring(commandAndSpaceLength);
+        // The actual prefix for the *last* argument part
+        argPrefix = parts[parts.length-1];
+      }
+
+
       const dirToListPath = terminalCwdPath === null ? openedDirectoryName : terminalCwdPath;
-      if (!dirToListPath && openedDirectoryName === null) { 
+      if (!dirToListPath && openedDirectoryName === null) {
           if (inputEndsWithSpace && KNOWN_COMMANDS.includes(commandName as CommandName)) {
               setTerminalOutput(prev => [...prev, `Cannot suggest arguments: No folder open.`, `${getTerminalPromptDisplay()} ${originalInputForPrompt}`]);
           }
@@ -943,17 +957,20 @@ export default function IdePage() {
   
       if (matchingItems.length === 1) {
         const matchedItem = matchingItems[0];
-        const baseInput = currentFullInput.substring(0, currentFullInput.length - argPrefix.length);
+        // Reconstruct the input up to the part we are completing
+        const lastPartIndex = currentFullInput.lastIndexOf(argPrefix);
+        const baseInput = currentFullInput.substring(0, lastPartIndex);
+        
         let completedValue = baseInput + matchedItem.name;
         completedValue += (matchedItem.type === 'folder' ? '/' : ' ');
         return completedValue;
-      } else if (matchingItems.length > 0) { 
+      } else if (matchingItems.length > 0) {
         const suggestionNames = matchingItems.map(item => item.name + (item.type === 'folder' ? '/' : ''));
         setTerminalOutput(prev => [...prev, `\n${suggestionNames.join('  ')}`, `${getTerminalPromptDisplay()} ${originalInputForPrompt}`]);
         return originalInputForPrompt;
       }
     }
-    return originalInputForPrompt; 
+    return originalInputForPrompt;
   }, [files, openedDirectoryName, terminalCwdPath, getTerminalPromptDisplay, setTerminalOutput]);
 
 
@@ -1103,3 +1120,4 @@ export default function IdePage() {
     </div>
   );
 }
+
