@@ -50,28 +50,25 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
     
     const processItem = async (item: FileOrFolder) => {
       if (item.type === 'file') {
-        let contentToUse = item.content;
-        if (!contentToUse && item.handle && item.handle.kind === 'file') {
+        let contentToUse: string | undefined = item.content;
+
+        // If content is not already in state (undefined or null) and there's a file handle, try to read it.
+        if ((contentToUse === undefined || contentToUse === null) && item.handle && item.handle.kind === 'file') {
           try {
             const fsFileHandle = item.handle as FileSystemFileHandle;
             const fileData = await fsFileHandle.getFile();
             contentToUse = await fileData.text();
           } catch (err) {
-            console.warn(`Could not read content for AI from file: ${item.path}`, err);
-            // Optionally send a placeholder or skip if content is crucial
-            // For now, we'll send it without content if reading fails
+            console.warn(`[AI Chat] Could not read content for AI from file: ${item.path}. Error:`, err);
+            contentToUse = undefined; // Ensure it's undefined if read fails
           }
         }
-        // Only add if content is available or was successfully read
-        if (contentToUse) {
+        
+        // Only add the file if its content is a string (this includes empty strings).
+        if (typeof contentToUse === 'string') {
           filesForAI.push({
             filePath: item.path,
             fileContent: contentToUse,
-          });
-        } else if (item.content === '') { // Handle explicitly empty files
-           filesForAI.push({
-            filePath: item.path,
-            fileContent: '',
           });
         }
       }
@@ -195,4 +192,3 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
     </Card>
   );
 }
-

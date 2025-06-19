@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow for handling chat conversations with an AI.
@@ -17,7 +18,7 @@ const ChatMessageSchema = z.object({
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
 const ProjectFileSchema = z.object({
-  filePath: z.string().describe('The full path to the project file, e.g., /src/components/button.tsx.'),
+  filePath: z.string().describe('The full path to the project file, e.g., /src/components/button.tsx or /file.txt for root files.'),
   fileContent: z.string().describe('The full text content of the project file.'),
 });
 
@@ -48,7 +49,7 @@ Mantenha um tom conversacional e útil. Responda sempre em português brasileiro
 Seu conhecimento dos arquivos do projeto do usuário é estritamente limitado ao conteúdo dos arquivos explicitamente fornecidos a você nesta conversa (campo 'projectFiles'). Você não pode navegar no sistema de arquivos do usuário ou acessar arquivos não listados.
 
 {{#if projectFiles}}
-O IDE compartilhou o conteúdo dos seguintes arquivos do projeto com você para esta conversa (esta é a lista completa de arquivos aos quais você tem acesso):
+O IDE compartilhou o conteúdo dos seguintes arquivos do projeto com você para esta conversa (esta é a lista completa de arquivos aos quais você tem acesso, incluindo arquivos na pasta raiz e em subpastas):
 {{#each projectFiles}}
 - {{{this.filePath}}}
 {{/each}}
@@ -94,4 +95,3 @@ const chatFlow = ai.defineFlow(
     return output!;
   }
 );
-
