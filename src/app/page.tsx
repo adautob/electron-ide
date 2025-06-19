@@ -141,7 +141,7 @@ export default function IdePage() {
       setActiveFile(file); 
       setEditorContent(''); // Clear editor if a folder is selected
     }
-  }, []);
+  }, [toast]);
 
   const handleEditorChange = useCallback((content: string) => {
     setEditorContent(content);
@@ -175,11 +175,16 @@ export default function IdePage() {
 
     try {
       const fileHandle = activeFile.handle as FileSystemFileHandle;
-      const permission = await fileHandle.requestPermission({ mode: 'readwrite' });
-      if (permission !== 'granted') {
-        toast({ variant: 'destructive', title: 'Permissão Negada', description: 'Permissão para salvar o arquivo foi negada.' });
-        return;
+      // Request permission before attempting to create a writable stream
+      // Some browsers might require this to be explicit even if permission was granted for the directory
+      if (typeof fileHandle.requestPermission === 'function') {
+        const permission = await fileHandle.requestPermission({ mode: 'readwrite' });
+        if (permission !== 'granted') {
+          toast({ variant: 'destructive', title: 'Permissão Negada', description: 'Permissão para salvar o arquivo foi negada.' });
+          return;
+        }
       }
+      
       const writable = await fileHandle.createWritable();
       await writable.write(editorContent);
       await writable.close();
@@ -207,7 +212,6 @@ export default function IdePage() {
 
   const getDirectoryHandleByPath = useCallback(async (path: string | null, currentRootHandle: FileSystemDirectoryHandle | null): Promise<FileSystemDirectoryHandle | null> => {
     if (!currentRootHandle) return null;
-    // If path is null, empty, or matches the root opened directory name, return the root handle
     if (path === null || path === '' || path === openedDirectoryName) {
       return currentRootHandle;
     }
@@ -217,14 +221,11 @@ export default function IdePage() {
     
     for (const segment of pathSegments) {
         if (!currentHandle) return null;
-        // This logic assumes that if a path segment is provided, it's for a directory.
-        // It will try to get a directory handle. If it fails, it means the path is invalid or points to a file.
         try {
             const entry = await currentHandle.getDirectoryHandle(segment);
             currentHandle = entry;
         } catch (e) {
              console.error(`Erro ao obter handle de diretório para segmento "${segment}" em "${path}":`, e);
-             // Fallback: If direct getDirectoryHandle fails, try to find it in files state (could be a folder FileOrFolder obj)
              const findInFileOrFolder = (items: FileOrFolder[], targetPath: string): FileSystemDirectoryHandle | undefined => {
                 for (const item of items) {
                     if (item.path === targetPath && item.type === 'folder' && item.handle?.kind === 'directory') {
@@ -237,7 +238,13 @@ export default function IdePage() {
                 }
                 return undefined;
             };
-            return findInFileOrFolder(files, path);
+            // Ensure the path passed to findInFileOrFolder is the full path of the directory we're trying to get
+            let accumulatedPath = '';
+            for (const p of pathSegments) {
+                accumulatedPath = accumulatedPath ? `${accumulatedPath}/${p}` : p;
+                if (p === segment) break;
+            }
+            return findInFileOrFolder(files, accumulatedPath);
         }
     }
     return currentHandle;
@@ -283,7 +290,7 @@ export default function IdePage() {
     const parentDirHandle = await getDirectoryHandleByPath(targetDirectoryPath, rootDirectoryHandle);
 
     if (!parentDirHandle) {
-      toast({ variant: "destructive", title: "Erro", description: `Diretório pai "${targetDirectoryPath || openedDirectoryName}" não encontrado.` });
+      toast({ variant: "destructive", title: "Erro", description: `Diretório pai "${targetDirectoryPath || openedDirectoryName || 'raiz'}" não encontrado.` });
       return;
     }
     
@@ -311,9 +318,6 @@ export default function IdePage() {
         newItemHandle = await parentDirHandle.getDirectoryHandle(itemName, { create: true });
       }
       
-      // Determine the correct path for refreshDirectoryInState
-      // If targetDirectoryPath is null, it means root.
-      // If rootDirectoryHandle is the parentDirHandle, then we are at the root.
       const pathForRefresh = parentDirHandle === rootDirectoryHandle ? null : targetDirectoryPath;
       await refreshDirectoryInState(pathForRefresh, parentDirHandle);
       
@@ -323,32 +327,49 @@ export default function IdePage() {
         const newFilePath = targetDirectoryPath ? `${targetDirectoryPath}/${itemName}` : itemName;
         
         setTimeout(async () => {
-            // Use a function to search within the *current* files state
-            const findNewlyCreatedFile = (items: FileOrFolder[], path: string): FileOrFolder | null => {
-              for (const item of items) {
-                if (item.path === path && item.type === 'file') return item;
-                if (item.children) {
-                  const found = findNewlyCreatedFile(item.children, path);
-                  if (found) return found;
-                }
-              }
-              return null;
-            };
-            // Access the latest files state via the setFiles callback form to ensure we have the updated list
             let fileToSelect: FileOrFolder | null = null;
             setFiles(currentFiles => {
+                const findNewlyCreatedFile = (items: FileOrFolder[], path: string): FileOrFolder | null => {
+                  for (const item of items) {
+                    if (item.path === path && item.type === 'file') return item;
+                    if (item.children) {
+                      const found = findNewlyCreatedFile(item.children, path);
+                      if (found) return found;
+                    }
+                  }
+                  return null;
+                };
                 fileToSelect = findNewlyCreatedFile(currentFiles, newFilePath);
-                return currentFiles; // No change, just using to access current state
+                // Re-fetch the handle for the new file to ensure it's fresh for handleSelectFile
+                if (fileToSelect && !fileToSelect.handle) {
+                    (async () => {
+                        try {
+                            const freshHandle = await parentDirHandle.getFileHandle(itemName);
+                            fileToSelect!.handle = freshHandle;
+                        } catch (err) {
+                            console.error("Error fetching handle for newly created file:", err);
+                        }
+                    })();
+                }
+                return currentFiles; 
             });
 
             if (fileToSelect) {
                  await handleSelectFile(fileToSelect);
             } else {
-                // Fallback if not found immediately
-                setActiveFile({ id: newFilePath, name: itemName, type: 'file', path: newFilePath, handle: newItemHandle as FileSystemFileHandle });
-                setEditorContent(''); 
+                // Fallback: try to construct a temporary FileOrFolder object to select if not found in state quickly
+                // This might happen if state update for files isn't immediate enough
+                const tempFileToSelect : FileOrFolder = { 
+                    id: newFilePath, 
+                    name: itemName, 
+                    type: 'file', 
+                    path: newFilePath, 
+                    handle: newItemHandle as FileSystemFileHandle 
+                };
+                await handleSelectFile(tempFileToSelect);
+                setEditorContent(''); // Ensure new file starts empty
             }
-        }, 200); 
+        }, 250); // Increased delay slightly
       }
 
     } catch (error) {
@@ -369,18 +390,18 @@ export default function IdePage() {
       return;
     }
 
-    if (itemPath === openedDirectoryName) {
+    if (itemPath === openedDirectoryName || (itemToRename.handle && itemToRename.handle === rootDirectoryHandle)) {
       toast({ variant: "destructive", title: "Não Permitido", description: "Não é possível renomear a pasta raiz aberta." });
       return;
     }
 
     const newName = prompt(`Digite o novo nome para "${itemToRename.name}":`, itemToRename.name);
     if (!newName || newName.trim() === '' || newName === itemToRename.name) {
-      toast({ title: "Cancelado", description: "Renomeação cancelada." });
+      toast({ title: "Cancelado", description: "Renomeação cancelada ou nome inalterado." });
       return;
     }
 
-    const parentPath = getParentPathRecursive(itemPath); // null if item is in root
+    const parentPath = getParentPathRecursive(itemPath); 
     const parentDirHandle = await getDirectoryHandleByPath(parentPath, rootDirectoryHandle);
 
     if (!parentDirHandle) {
@@ -388,7 +409,6 @@ export default function IdePage() {
       return;
     }
 
-    // Check if new name already exists
     try {
       if (itemToRename.type === 'file') {
         await parentDirHandle.getFileHandle(newName);
@@ -411,30 +431,48 @@ export default function IdePage() {
         return;
       }
       
-      // The move method on FileSystemDirectoryHandle renames an entry within that directory.
-      // Note: The specific FileSystemHandle (itemToRename.handle) itself doesn't have a rename or move method.
-      // We operate on its parent.
-      // @ts-ignore - move is a valid method on FileSystemDirectoryHandle
-      await parentDirHandle.move(itemToRename.name, newName);
+      if (typeof (parentDirHandle as any).move !== 'function') {
+        console.error("FileSystemDirectoryHandle.move() is not supported in this browser or environment.");
+        toast({
+          variant: "destructive",
+          title: "Operação Não Suportada",
+          description: "A renomeação de arquivos/pastas pode não ser totalmente suportada pelo seu navegador.",
+        });
+        return;
+      }
+      
+      await (parentDirHandle as any).move(itemToRename.name, newName);
 
       const pathForRefresh = parentDirHandle === rootDirectoryHandle ? null : parentPath;
       await refreshDirectoryInState(pathForRefresh, parentDirHandle);
 
       toast({ title: "Renomeado", description: `"${itemToRename.name}" foi renomeado para "${newName}".` });
 
-      // Update activeFile if it was the renamed item or a child of a renamed folder
       const newFullPath = parentPath ? `${parentPath}/${newName}` : newName;
       if (activeFile) {
-        if (activeFile.path === itemPath) { // Item renamed was the active file
+        if (activeFile.path === itemPath) { 
+          // Re-fetch the handle for the renamed item
+          let newHandle: FileSystemFileHandle | FileSystemDirectoryHandle | undefined;
+          try {
+            if (itemToRename.type === 'file') {
+              newHandle = await parentDirHandle.getFileHandle(newName);
+            } else {
+              newHandle = await parentDirHandle.getDirectoryHandle(newName);
+            }
+          } catch (err) {
+            console.error("Error fetching handle for renamed item:", err);
+          }
           setActiveFile(prev => ({
             ...prev!,
             name: newName,
             path: newFullPath,
             id: newFullPath,
-            // handle should still be valid as the rename was done via its parent
+            handle: newHandle || prev!.handle, // Use new handle if fetched, else keep old (though it might be stale)
           }));
-        } else if (itemToRename.type === 'folder' && activeFile.path.startsWith(itemPath + '/')) { // Active file was inside the renamed folder
+        } else if (itemToRename.type === 'folder' && activeFile.path.startsWith(itemPath + '/')) { 
             const newActiveFilePath = activeFile.path.replace(itemPath, newFullPath);
+             // The handle for a file within a renamed folder should still be valid if referenced by its new path,
+             // but it's safer to re-evaluate or simply update path and let selection logic handle re-fetch if needed.
             setActiveFile(prev => ({
                 ...prev!,
                 path: newActiveFilePath,
@@ -482,9 +520,9 @@ export default function IdePage() {
   const handleCompleteFromContext = async (codeSnippet: string, cursorPosition: number) => {
     toast({ title: "AI", description: "Gerando autocompletar..." });
     try {
-      const result = await aiCodeCompletionFromContext({ codeSnippet, cursorPosition, programmingLanguage: 'typescript' });
+      const result = await aiCodeCompletionFromContext({ codeSnippet, cursorPosition, programmingLanguage: 'typescript' }); // Assuming TS for now
       if (result.suggestions && result.suggestions.length > 0) {
-        const suggestion = result.suggestions[0];
+        const suggestion = result.suggestions[0]; // Take the first suggestion for simplicity
         setEditorContent(prev => {
           return prev.substring(0, cursorPosition) + suggestion + prev.substring(cursorPosition);
         });
@@ -498,8 +536,22 @@ export default function IdePage() {
     }
   };
 
-  const logAction = (action: string, path: string | null) => toast({ title: "Ação de Arquivo (Demo)", description: `${action}: ${path || 'raiz'} (não salva no disco)`});
-  const handleDeleteItem = (itemPath: string) => logAction("Deletar Item", itemPath);
+  // Placeholder for actual delete functionality
+  const handleDeleteItem = (itemPath: string) => {
+    // For now, just show a toast. Implementing actual delete needs care.
+    const itemToDelete = findItemByPathRecursive(files, itemPath);
+    if (!itemToDelete) {
+      toast({ variant: "destructive", title: "Erro", description: "Item não encontrado para deletar." });
+      return;
+    }
+    toast({ title: "Deletar (Demo)", description: `Ação de deletar para "${itemToDelete.name}" (não implementado no disco).`});
+    // Actual implementation would involve:
+    // 1. Confirming with the user.
+    // 2. Using parentDirHandle.removeEntry(itemName, { recursive: true/false })
+    // 3. Updating state: setFiles, setActiveFile if needed.
+    // 4. Handling errors and permissions.
+  };
+
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
@@ -517,9 +569,9 @@ export default function IdePage() {
           onCreateFile={(parentPath) => handleCreateItem('file', parentPath)}
           onCreateFolder={(parentPath) => handleCreateItem('folder', parentPath)}
           onRenameItem={handleRenameItem}
-          onDeleteItem={handleDeleteItem}
+          onDeleteItem={handleDeleteItem} // Pass the demo delete handler
           openedDirectoryName={openedDirectoryName}
-          allFiles={files}
+          allFiles={files} // Pass allFiles for context in FileExplorer actions
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <CodeEditor
