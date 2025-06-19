@@ -13,7 +13,7 @@ interface FileExplorerProps {
   selectedFilePath: string | null;
   onCreateFile: (targetDirectoryPath: string | null) => void;
   onCreateFolder: (targetDirectoryPath: string | null) => void;
-  onRenameItem: (itemPath: string) => void; // Changed to only pass itemPath
+  onRenameItem: (itemPath: string) => void; 
   onDeleteItem: (itemPath: string) => void;
   openedDirectoryName?: string | null;
   allFiles: FileOrFolder[]; 
@@ -80,7 +80,7 @@ export function FileExplorer({
 
   const handleRenameClick = () => {
     if (selectedFilePath) {
-      onRenameItem(selectedFilePath); // Just pass the path
+      onRenameItem(selectedFilePath); 
     }
   };
   
@@ -105,7 +105,7 @@ export function FileExplorer({
             <Button variant="ghost" size="icon" className="h-7 w-7" title="Renomear" onClick={handleRenameClick} disabled={!selectedFilePath || !canPerformFileActions}>
               <Edit3 size={16} />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive" title="Deletar (Demo)" onClick={() => selectedFilePath && onDeleteItem(selectedFilePath)} disabled={!selectedFilePath || !canPerformFileActions}>
+            <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive" title="Deletar" onClick={() => selectedFilePath && onDeleteItem(selectedFilePath)} disabled={!selectedFilePath || !canPerformFileActions}>
               <Trash2 size={16} />
             </Button>
           </div>
