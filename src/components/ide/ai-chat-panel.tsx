@@ -156,7 +156,7 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
         
         if (typeof contentToUse === 'string') {
           filesForAI.push({
-            filePath: item.path, // Use full path for AI context
+            filePath: item.path, 
             fileContent: contentToUse,
           });
         }
@@ -261,7 +261,7 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
   return (
     <Card
       style={{ width: `${panelWidth}px` }}
-      className="flex flex-col h-full border-l border-border rounded-none shrink-0 relative"
+      className="flex flex-col h-full border-l border-border rounded-none shrink-0 relative bg-background text-foreground"
     >
       <div
         ref={dragHandleRef}
