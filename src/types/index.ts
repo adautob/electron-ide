@@ -4,5 +4,6 @@ export interface FileOrFolder {
   type: 'file' | 'folder';
   path: string;
   children?: FileOrFolder[];
-  content?: string; // For files
+  content?: string; // For files, loaded on demand
+  handle?: FileSystemFileHandle | FileSystemDirectoryHandle; // To interact with the actual file/folder
 }
