@@ -121,14 +121,15 @@ export default function IdePage() {
           const fileData = await fsFileHandle.getFile();
           const text = await fileData.text();
           setEditorContent(text);
+          // Update the content in the main files state so AiChatPanel can access it
           setFiles(prevFiles => {
-            const updateContent = (items: FileOrFolder[]): FileOrFolder[] => 
+            const updateContentRecursive = (items: FileOrFolder[]): FileOrFolder[] => 
               items.map(item => {
                 if (item.id === file.id) return { ...item, content: text };
-                if (item.children) return { ...item, children: updateContent(item.children) };
+                if (item.children) return { ...item, children: updateContentRecursive(item.children) };
                 return item;
               });
-            return updateContent(prevFiles);
+            return updateContentRecursive(prevFiles);
           });
         } catch (error) {
           console.error("Erro ao ler arquivo:", error);
@@ -148,18 +149,18 @@ export default function IdePage() {
     setEditorContent(content);
     if (activeFile && activeFile.type === 'file') {
       setFiles(prevFiles => {
-        const updateFileContent = (items: FileOrFolder[]): FileOrFolder[] => {
+        const updateFileContentRecursive = (items: FileOrFolder[]): FileOrFolder[] => {
           return items.map(item => {
             if (item.id === activeFile.id) {
               return { ...item, content };
             }
             if (item.children) {
-              return { ...item, children: updateFileContent(item.children) };
+              return { ...item, children: updateFileContentRecursive(item.children) };
             }
             return item;
           });
         };
-        return updateFileContent(prevFiles);
+        return updateFileContentRecursive(prevFiles);
       });
     }
   }, [activeFile]);
@@ -261,18 +262,18 @@ export default function IdePage() {
       setFiles(newChildren);
     } else { 
       setFiles(prevFiles => {
-        const updateChildren = (items: FileOrFolder[]): FileOrFolder[] => {
+        const updateChildrenRecursive = (items: FileOrFolder[]): FileOrFolder[] => {
           return items.map(item => {
             if (item.path === directoryPath && item.type === 'folder') {
               return { ...item, children: newChildren };
             }
             if (item.children) {
-              return { ...item, children: updateChildren(item.children) };
+              return { ...item, children: updateChildrenRecursive(item.children) };
             }
             return item;
           });
         };
-        return updateChildren(prevFiles);
+        return updateChildrenRecursive(prevFiles);
       });
     }
   };
@@ -331,20 +332,21 @@ export default function IdePage() {
         setTimeout(async () => {
             let fileToSelect: FileOrFolder | null = null;
             
+            // Ensure the state is truly updated before trying to find the file
             await refreshDirectoryInState(pathForRefresh, parentDirHandle);
 
             setFiles(currentFiles => {
-                const findNewlyCreatedFile = (items: FileOrFolder[], path: string): FileOrFolder | null => {
+                const findNewlyCreatedFileRecursive = (items: FileOrFolder[], path: string): FileOrFolder | null => {
                   for (const item of items) {
                     if (item.path === path && item.type === 'file') return item;
                     if (item.children) {
-                      const found = findNewlyCreatedFile(item.children, path);
+                      const found = findNewlyCreatedFileRecursive(item.children, path);
                       if (found) return found;
                     }
                   }
                   return null;
                 };
-                fileToSelect = findNewlyCreatedFile(currentFiles, newFilePath);
+                fileToSelect = findNewlyCreatedFileRecursive(currentFiles, newFilePath);
                 
                 if (fileToSelect && !fileToSelect.handle && newItemHandle.kind === 'file') {
                     fileToSelect.handle = newItemHandle as FileSystemFileHandle;
@@ -358,6 +360,7 @@ export default function IdePage() {
                  await handleSelectFile(fileToSelect);
                  setEditorContent(''); 
             } else {
+                 // Fallback if not found immediately (though refresh should handle it)
                 const tempFileToSelect : FileOrFolder = { 
                     id: newFilePath, 
                     name: itemName, 
@@ -432,7 +435,7 @@ export default function IdePage() {
       
       const handleToMove = itemToRename.handle as any; // FileSystemFileHandle or FileSystemDirectoryHandle
       if (typeof handleToMove.move === 'function') {
-         await handleToMove.move(newName);
+         await handleToMove.move(parentDirHandle, newName); // Correct usage: move(destinationDirectoryHandle, newName)
       } else {
         console.error("FileSystemHandle.move() is not supported for this item or browser.");
         toast({
@@ -519,8 +522,6 @@ export default function IdePage() {
   const handleCompleteFromContext = async (codeSnippet: string, cursorPosition: number) => {
     toast({ title: "AI", description: "Gerando autocompletar..." });
     
-    // Collect content of other open files or relevant files if needed
-    // For now, sending only current file context
     const input: AICodeCompletionFromContextInput = {
       codeSnippet,
       cursorPosition,
@@ -530,7 +531,6 @@ export default function IdePage() {
                            activeFile?.name.endsWith('.java') ? 'java' :
                            activeFile?.name.endsWith('.css') ? 'css' :
                            activeFile?.name.endsWith('.html') ? 'html' : 'plaintext',
-      // otherFiles: [] // Potentially populate this later
     };
 
     try {
@@ -640,7 +640,7 @@ export default function IdePage() {
             />
           </TerminalResizableWrapper>
         </div>
-        <AiChatPanel /> {/* AI Chat Panel */}
+        <AiChatPanel projectFiles={files} /> {/* AI Chat Panel */}
       </main>
       <PreferencesDialog isOpen={isPreferencesOpen} onOpenChange={setIsPreferencesOpen} />
     </div>

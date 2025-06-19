@@ -3,7 +3,7 @@
 /**
  * @fileOverview A Genkit flow for handling chat conversations with an AI.
  *
- * - chatWithAI - A function that takes user input and conversation history, returns AI response.
+ * - chatWithAI - A function that takes user input, conversation history, and project files, returns AI response.
  * - ChatInput - The input type for the chatWithAI function.
  * - ChatOutput - The return type for the chatWithAI function.
  */
@@ -17,9 +17,15 @@ const ChatMessageSchema = z.object({
 });
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
+const ProjectFileSchema = z.object({
+  filePath: z.string().describe('The full path to the project file, e.g., /src/components/button.tsx.'),
+  fileContent: z.string().describe('The full text content of the project file.'),
+});
+
 const ChatInputSchema = z.object({
   userMessage: z.string().describe('The latest message from the user.'),
   history: z.array(ChatMessageSchema).optional().describe('The conversation history up to this point.'),
+  projectFiles: z.array(ProjectFileSchema).optional().describe('An array of project files (path and content) that the user currently has open or relevant to the conversation, to provide context to the AI.'),
 });
 export type ChatInput = z.infer<typeof ChatInputSchema>;
 
@@ -44,6 +50,19 @@ const chatPrompt = ai.definePrompt({
   Conversation History:
   {{#each history}}
   {{this.role}}: {{{this.content}}}
+  {{/each}}
+  {{/if}}
+
+  {{#if projectFiles}}
+  The user has the following project files open or relevant to this conversation. You can refer to them if the user's query is about their code:
+  {{#each projectFiles}}
+  ---
+  File Path: {{{this.filePath}}}
+  Content:
+  \`\`\`
+  {{{this.fileContent}}}
+  \`\`\`
+  ---
   {{/each}}
   {{/if}}
 

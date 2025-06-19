@@ -7,15 +7,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
-import { chatWithAI, type ChatMessage as AIChatMessage } from '@/ai/flows/chat-flow'; 
+import { chatWithAI, type ChatMessage as AIChatMessage, type ChatInput } from '@/ai/flows/chat-flow'; 
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import type { FileOrFolder } from '@/types';
 
 interface DisplayMessage extends AIChatMessage {
   id: string;
 }
 
-export function AiChatPanel() {
+interface AiChatPanelProps {
+  projectFiles: FileOrFolder[];
+}
+
+export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,6 +45,27 @@ export function AiChatPanel() {
     setInputValue(e.target.value);
   };
 
+  const prepareProjectFilesForAI = (allProjectFiles: FileOrFolder[]): ChatInput['projectFiles'] => {
+    const filesForAI: NonNullable<ChatInput['projectFiles']> = [];
+    
+    const collectFilesRecursive = (items: FileOrFolder[]) => {
+      for (const item of items) {
+        if (item.type === 'file' && item.content) { // Only send files with loaded content
+          filesForAI.push({
+            filePath: item.path,
+            fileContent: item.content,
+          });
+        }
+        if (item.children) {
+          collectFilesRecursive(item.children);
+        }
+      }
+    };
+    collectFilesRecursive(allProjectFiles);
+    return filesForAI.length > 0 ? filesForAI : undefined;
+  };
+
+
   const handleSendMessage = async (e?: React.FormEvent<HTMLFormElement>) => {
     e?.preventDefault();
     const trimmedInput = inputValue.trim();
@@ -55,10 +81,18 @@ export function AiChatPanel() {
     setIsLoading(true);
 
     try {
-      // Prepare history for the AI
       const historyForAI: AIChatMessage[] = messages.map(({ role, content }) => ({ role, content }));
+      const currentProjectFilesForAI = prepareProjectFilesForAI(projectFiles);
       
-      const response = await chatWithAI({ userMessage: trimmedInput, history: historyForAI });
+      const chatInput: ChatInput = {
+         userMessage: trimmedInput, 
+         history: historyForAI,
+      };
+      if (currentProjectFilesForAI) {
+        chatInput.projectFiles = currentProjectFilesForAI;
+      }
+      
+      const response = await chatWithAI(chatInput);
       const aiMessage: DisplayMessage = {
         id: Date.now().toString() + '-model',
         role: 'model',
@@ -72,7 +106,6 @@ export function AiChatPanel() {
         title: 'AI Chat Error',
         description: 'Failed to get a response from the AI.',
       });
-      // Optionally, add the user message back to input or keep it in chat with an error indicator
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
@@ -103,7 +136,6 @@ export function AiChatPanel() {
                       : 'bg-secondary text-secondary-foreground'
                   )}
                 >
-                  {/* For proper markdown/code rendering, a library might be needed in future */}
                   <pre className="whitespace-pre-wrap font-sans">{msg.content}</pre>
                 </div>
               </div>
