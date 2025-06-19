@@ -43,7 +43,7 @@ export default function IdePage() {
   const [files, setFiles] = useState<FileOrFolder[]>([]);
   const [activeFile, setActiveFile] = useState<FileOrFolder | null>(null);
   const [editorContent, setEditorContent] = useState<string>('');
-  const [terminalOutput, setTerminalOutput] = useState<string[]>(['Welcome to Electron IDE Terminal!']);
+  const [terminalOutput, setTerminalOutput] = useState<string[]>(['Welcome to Electron IDE Terminal! Type "help" for available commands.']);
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [openedDirectoryName, setOpenedDirectoryName] = useState<string | null>(null);
   const [rootDirectoryHandle, setRootDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
@@ -108,20 +108,20 @@ export default function IdePage() {
       }
       const directoryHandle = await window.showDirectoryPicker();
       setRootDirectoryHandle(directoryHandle);
-      const processedFiles = await processDirectory(directoryHandle);
+      const processedFiles = await processDirectory(directoryHandle, directoryHandle.name);
       setFiles(processedFiles);
       setActiveFile(null);
       setEditorContent('');
       setOpenedDirectoryName(directoryHandle.name);
       setTerminalCwdPath(null); // Reset terminal CWD to root of new folder
-      setTerminalOutput([`Pasta "${directoryHandle.name}" aberta. ${getTerminalPromptDisplay()}`]);
-      toast({ title: "Pasta Aberta", description: `Pasta "${directoryHandle.name}" carregada.` });
+      setTerminalOutput([`Folder "${directoryHandle.name}" opened. Type "help" for available commands. ${getTerminalPromptDisplay()}`]);
+      toast({ title: "Pasta Aberta", description: `Folder "${directoryHandle.name}" loaded.` });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        console.log("Seleção de pasta cancelada pelo usuário.");
+        console.log("Folder selection cancelled by user.");
       } else {
-        console.error("Erro ao abrir pasta:", error);
-        toast({ variant: "destructive", title: "Erro ao Abrir Pasta", description: "Não foi possível carregar a pasta." });
+        console.error("Error opening folder:", error);
+        toast({ variant: "destructive", title: "Erro ao Abrir Pasta", description: "Could not load folder." });
       }
     }
   };
@@ -147,12 +147,12 @@ export default function IdePage() {
             return updateContentRecursive(prevFiles);
           });
         } catch (error) {
-          console.error("Erro ao ler arquivo:", error);
-          toast({ variant: "destructive", title: "Erro ao Ler Arquivo", description: `Não foi possível ler ${file.name}.` });
-          setEditorContent(`// Erro ao carregar ${file.name}`);
+          console.error("Error reading file:", error);
+          toast({ variant: "destructive", title: "Erro ao Ler Arquivo", description: `Could not read ${file.name}.` });
+          setEditorContent(`// Error loading ${file.name}`);
         }
       } else {
-        setEditorContent(`// Conteúdo para ${file.name} (sem handle ou não é arquivo)\n`);
+        setEditorContent(`// Content for ${file.name} (no handle or not a file)\n`);
       }
     } else { 
       setActiveFile(file); 
@@ -185,7 +185,7 @@ export default function IdePage() {
       toast({
         variant: 'destructive',
         title: 'Erro ao Salvar',
-        description: 'Nenhum arquivo selecionado ou o arquivo não pode ser salvo.',
+        description: 'No file selected or file cannot be saved.',
       });
       return;
     }
@@ -193,10 +193,10 @@ export default function IdePage() {
     try {
       const fileHandle = activeFile.handle as FileSystemFileHandle;
       
-      if (typeof (fileHandle as any).requestPermission === 'function') { // Check if requestPermission exists
+      if (typeof (fileHandle as any).requestPermission === 'function') { 
         const permission = await (fileHandle as any).requestPermission({ mode: 'readwrite' });
         if (permission !== 'granted') {
-          toast({ variant: 'destructive', title: 'Permissão Negada', description: 'Permissão para salvar o arquivo foi negada.' });
+          toast({ variant: 'destructive', title: 'Permission Denied', description: 'Permission to save file was denied.' });
           return;
         }
       }
@@ -206,21 +206,21 @@ export default function IdePage() {
       await writable.close();
       toast({
         title: 'Arquivo Salvo',
-        description: `"${activeFile.name}" foi salvo com sucesso.`,
+        description: `"${activeFile.name}" was saved successfully.`,
       });
     } catch (error) {
-      console.error('Erro ao salvar arquivo:', error);
+      console.error('Error saving file:', error);
       if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError' || error.name === 'NotFoundError')) {
            toast({
               variant: 'destructive',
               title: 'Permissão ou Erro ao Salvar',
-              description: 'Permissão negada ou arquivo não encontrado. Tente novamente ou reabra a pasta.',
+              description: 'Permission denied or file not found. Try again or reopen the folder.',
           });
       } else {
           toast({
               variant: 'destructive',
               title: 'Erro ao Salvar',
-              description: `Não foi possível salvar "${activeFile.name}".`,
+              description: `Could not save "${activeFile.name}".`,
           });
       }
     }
@@ -228,27 +228,17 @@ export default function IdePage() {
 
   const getDirectoryHandleByPath = useCallback(async (path: string | null, currentRootHandle: FileSystemDirectoryHandle | null): Promise<FileSystemDirectoryHandle | null> => {
     if (!currentRootHandle) return null;
-    if (path === null || path === '' || path === openedDirectoryName) { // Path is effectively the root directory opened
-        // If openedDirectoryName itself is the path, currentRootHandle is what we want.
-        // If path is null, it means the root.
+    if (path === null || path === '' || path === openedDirectoryName) {
       return currentRootHandle;
     }
-
-    // Path is relative to the content of the opened directory, not including openedDirectoryName itself as the first segment.
-    // Example: openedDirectoryName = "MyProject". Path to a subfolder "src" would be "MyProject/src".
-    // We need to get "src" from currentRootHandle ("MyProject").
 
     let pathSegments: string[];
     if (path.startsWith(currentRootHandle.name + '/')) {
         pathSegments = path.substring(currentRootHandle.name.length + 1).split('/');
-    } else if (path === currentRootHandle.name) { // Path is exactly the opened directory
+    } else if (path === currentRootHandle.name) { 
         return currentRootHandle;
-    }
-     else {
-        // This case should ideally not happen if 'path' is always relative to the root dir content or the root dir itself.
-        // For safety, let's assume 'path' could be a direct sub-path if it doesn't include openedDirectoryName
+    } else {
         pathSegments = path.split('/');
-        // console.warn(`Path "${path}" does not start with openedDirectoryName "${currentRootHandle.name}". Assuming direct subpath.`);
     }
     
     if (pathSegments.length === 1 && pathSegments[0] === '') pathSegments = [];
@@ -257,17 +247,18 @@ export default function IdePage() {
     let currentHandle: FileSystemDirectoryHandle | null = currentRootHandle;
     
     for (const segment of pathSegments) {
-        if (!currentHandle || segment === '') continue; // Skip empty segments that might arise from splitting
+        if (!currentHandle || segment === '') continue; 
         try {
             currentHandle = await currentHandle.getDirectoryHandle(segment);
         } catch (e) {
-             console.warn(`Falha ao obter handle para "${segment}" em "${path}" diretamente, tentando encontrar no estado...`, e);
+             console.warn(`Failed to get handle for "${segment}" in "${path}" directly, trying to find in state...`, e);
              
              let accumulatedPath = openedDirectoryName || '';
              const segmentsToCurrent = pathSegments.slice(0, pathSegments.indexOf(segment) + 1);
 
-             if (accumulatedPath) accumulatedPath += '/' + segmentsToCurrent.join('/');
-             else accumulatedPath = segmentsToCurrent.join('/');
+             if (accumulatedPath && segmentsToCurrent.length > 0) accumulatedPath += '/' + segmentsToCurrent.join('/');
+             else if (segmentsToCurrent.length > 0) accumulatedPath = segmentsToCurrent.join('/');
+             else accumulatedPath = openedDirectoryName || '';
 
 
              const findInFileOrFolder = (items: FileOrFolder[], targetPath: string): FileSystemDirectoryHandle | undefined => {
@@ -284,7 +275,7 @@ export default function IdePage() {
             };
             currentHandle = findInFileOrFolder(files, accumulatedPath) || null;
             if (!currentHandle) {
-                console.error(`Não foi possível encontrar handle de diretório para o segmento "${segment}" em "${path}" mesmo no estado. AccPath: ${accumulatedPath}`);
+                console.error(`Could not find directory handle for segment "${segment}" in path "${path}". Accumulated path: ${accumulatedPath}`);
                 return null;
             }
         }
@@ -294,12 +285,10 @@ export default function IdePage() {
 
 
   const refreshDirectoryInState = async (directoryPath: string | null, dirHandle: FileSystemDirectoryHandle) => {
-    // directoryPath is the full path of the directory to refresh.
-    // currentPath for processDirectory needs to be the path from where processDirectory starts scanning.
-    // If directoryPath is 'MyProject/src', and dirHandle is for 'src', then currentPath for processDirectory should be 'MyProject/src'.
-    const newChildren = await processDirectory(dirHandle, directoryPath || (openedDirectoryName || ''));
+    const pathPrefixForProcessDirectory = directoryPath === null ? (openedDirectoryName || '') : directoryPath;
+    const newChildren = await processDirectory(dirHandle, pathPrefixForProcessDirectory);
 
-    if (directoryPath === null || directoryPath === openedDirectoryName) { // Refreshing the root
+    if (directoryPath === null || directoryPath === openedDirectoryName) { 
       setFiles(newChildren);
     } else { 
       setFiles(prevFiles => {
@@ -322,29 +311,24 @@ export default function IdePage() {
   const handleCreateFileSystemItemInternal = async (
     type: 'file' | 'folder',
     itemName: string,
-    targetContainerPath: string | null // Full path of the container directory, or null for root of opened folder
+    targetContainerPath: string | null 
   ): Promise<boolean> => {
     if (!rootDirectoryHandle || !openedDirectoryName) {
-      toast({ variant: "destructive", title: "Erro", description: "Nenhuma pasta aberta para criar itens." });
+      toast({ variant: "destructive", title: "Erro", description: "No folder open to create items in." });
       return false;
     }
 
     if (!itemName || itemName.trim() === '' || itemName.includes('/') || itemName.includes('\\')) {
-      toast({ title: "Nome Inválido", description: `Nome para ${type} inválido ou contém barras.` });
+      toast({ title: "Nome Inválido", description: `Name for ${type} is invalid or contains slashes.` });
       return false;
     }
     
-    // targetContainerPath refers to a path *within* the openedDirectoryName structure
-    // e.g. if openedDir is "MyProject", targetContainerPath could be "MyProject/src" or "MyProject" (for root items) or null (for root items)
-    // getDirectoryHandleByPath expects the full path of the directory it should return a handle for.
-    // If targetContainerPath is null, we want to create in rootDirectoryHandle.
-    // If targetContainerPath is "MyProject/src", we want the handle for "src".
     const parentDirHandleToCreateIn = targetContainerPath === null
       ? rootDirectoryHandle
       : await getDirectoryHandleByPath(targetContainerPath, rootDirectoryHandle);
 
     if (!parentDirHandleToCreateIn) {
-      toast({ variant: "destructive", title: "Erro", description: `Diretório pai "${targetContainerPath || openedDirectoryName}" não encontrado.` });
+      toast({ variant: "destructive", title: "Erro", description: `Parent directory "${targetContainerPath || openedDirectoryName}" not found.` });
       return false;
     }
     
@@ -354,12 +338,12 @@ export default function IdePage() {
         } else {
             await parentDirHandleToCreateIn.getDirectoryHandle(itemName);
         }
-        toast({ variant: "destructive", title: "Erro ao Criar", description: `Um item chamado "${itemName}" já existe em "${targetContainerPath || openedDirectoryName}".` });
+        toast({ variant: "destructive", title: "Erro ao Criar", description: `An item named "${itemName}" already exists in "${targetContainerPath || openedDirectoryName}".` });
         return false;
     } catch (e) {
         if (!(e instanceof DOMException && e.name === 'NotFoundError')) {
-            console.error("Erro ao verificar existência:", e);
-            toast({ variant: "destructive", title: "Erro", description: "Falha ao verificar existência do item."});
+            console.error("Error checking existence:", e);
+            toast({ variant: "destructive", title: "Erro", description: "Failed to check item existence."});
             return false;
         }
     }
@@ -371,30 +355,26 @@ export default function IdePage() {
         await parentDirHandleToCreateIn.getDirectoryHandle(itemName, { create: true });
       }
       
-      // Path for refresh is the path of the directory *whose contents changed*.
-      // If targetContainerPath is null, means root, so refresh root (itself).
-      // rootDirectoryHandle.name is the name of the folder, e.g., "MyProject"
-      // refreshDirectoryInState needs the full path of the directory to refresh.
       const refreshPath = targetContainerPath === null ? openedDirectoryName : targetContainerPath;
       await refreshDirectoryInState(refreshPath, parentDirHandleToCreateIn);
       
-      toast({ title: `${type === 'file' ? 'Arquivo Criado' : 'Pasta Criada'}`, description: `"${itemName}" foi criado com sucesso em "${targetContainerPath || openedDirectoryName}".` });
+      toast({ title: `${type === 'file' ? 'Arquivo Criado' : 'Pasta Criada'}`, description: `"${itemName}" was created successfully in "${targetContainerPath || openedDirectoryName}".` });
       return true;
     } catch (error) {
-      console.error(`Erro ao criar ${type}:`, error);
-      toast({ variant: "destructive", title: `Erro ao Criar ${type}`, description: `Não foi possível criar "${itemName}". Verifique as permissões.` });
+      console.error(`Error creating ${type}:`, error);
+      toast({ variant: "destructive", title: `Erro ao Criar ${type}`, description: `Could not create "${itemName}". Check permissions.` });
       return false;
     }
   };
 
 
   const handleCreateItem = async (type: 'file' | 'folder', targetDirectoryPath: string | null) => {
-    const itemNameFromPrompt = prompt(`Digite o nome para ${type === 'file' ? 'o novo arquivo' : 'a nova pasta'}:`);
-    if (!itemNameFromPrompt) { // User cancelled or entered empty
-      if (itemNameFromPrompt === '') { // Specifically empty
-         toast({ title: "Nome Inválido", description: `Nome para ${type} não pode ser vazio.` });
-      } else { // Cancelled (null)
-         toast({ title: "Cancelado", description: `Criação de ${type} cancelada.` });
+    const itemNameFromPrompt = prompt(`Enter the name for the new ${type}:`);
+    if (!itemNameFromPrompt) { 
+      if (itemNameFromPrompt === '') { 
+         toast({ title: "Nome Inválido", description: `Name for ${type} cannot be empty.` });
+      } else { 
+         toast({ title: "Cancelado", description: `Creation of ${type} cancelled.` });
       }
       return;
     }
@@ -402,63 +382,24 @@ export default function IdePage() {
     const success = await handleCreateFileSystemItemInternal(type, itemNameFromPrompt, targetDirectoryPath);
 
     if (success && type === 'file') {
-        const newItemFullPath = targetDirectoryPath 
-            ? `${targetDirectoryPath}/${itemNameFromPrompt}` 
-            : `${openedDirectoryName}/${itemNameFromPrompt}`; // Assuming targetDirectoryPath is relative or null for root
+        // Construct the full path of the newly created file
+        let newItemFullPath: string;
+        if (targetDirectoryPath === null) { // Created in the root of the opened directory
+            newItemFullPath = `${openedDirectoryName}/${itemNameFromPrompt}`;
+        } else { // Created in a subdirectory
+            newItemFullPath = `${targetDirectoryPath}/${itemNameFromPrompt}`;
+        }
         
-        // This part for auto-selecting/opening is specific to FileExplorer interaction
         setTimeout(async () => {
             const dirToRefreshHandle = targetDirectoryPath === null ? rootDirectoryHandle : await getDirectoryHandleByPath(targetDirectoryPath, rootDirectoryHandle);
             if (!dirToRefreshHandle) return;
             
-            // The path passed to refreshDirectoryInState should be the full path of the directory to refresh
             const refreshPath = targetDirectoryPath === null ? openedDirectoryName : targetDirectoryPath;
             await refreshDirectoryInState(refreshPath, dirToRefreshHandle);
 
             let fileToSelect: FileOrFolder | null = null;
             setFiles(currentFiles => {
-                const findNewlyCreatedFileRecursive = (items: FileOrFolder[], path: string): FileOrFolder | null => {
-                  for (const item of items) {
-                    if (item.path === path && item.type === 'file') return item;
-                    if (item.children) {
-                      const found = findNewlyCreatedFileRecursive(item.children, path);
-                      if (found) return found;
-                    }
-                  }
-                  return null;
-                };
-                // The `path` property in FileOrFolder is already the full path from the perspective of `processDirectory`
-                // If `targetDirectoryPath` is null, the item is in the root, its path is `itemNameFromPrompt`
-                // If `targetDirectoryPath` is "MyProject/src", its path is "MyProject/src/itemNameFromPrompt"
-                // The `id` and `path` in `FileOrFolder` are generated by `processDirectory`.
-                // `processDirectory` uses `currentPath` which is `targetDirectoryPath` when refreshing.
-                // So the new item's path will be `targetDirectoryPath + '/' + itemNameFromPrompt` (if targetDirectoryPath)
-                // or just `itemNameFromPrompt` (if targetDirectoryPath is null, meaning root).
-                // This needs to align with how `FileOrFolder.path` is constructed.
-                // `processDirectory` currentPath argument is the *prefix* for paths it generates.
-                // If we refreshed `openedDirectoryName` (root), then `currentPath` for `processDirectory` was `openedDirectoryName`.
-                // A new file `foo.txt` in root would have path `openedDirectoryName/foo.txt`.
-                // If we refreshed `openedDirectoryName/src`, currentPath was `openedDirectoryName/src`.
-                // A new file `bar.txt` in `src` would have path `openedDirectoryName/src/bar.txt`.
-
-                let searchPath = itemNameFromPrompt;
-                if (targetDirectoryPath) { // Created in a subfolder
-                    searchPath = `${targetDirectoryPath}/${itemNameFromPrompt}`;
-                } else if (openedDirectoryName) { // Created in root of opened folder
-                    searchPath = `${openedDirectoryName}/${itemNameFromPrompt}`;
-                }
-                // If openedDirectoryName is null, this shouldn't be reached (no rootDirectoryHandle)
-
-                fileToSelect = findItemByPathRecursive(currentFiles, searchPath);
-                
-                // Try to fetch handle if missing (it should have been set by processDirectory)
-                if (fileToSelect && !fileToSelect.handle && fileToSelect.handle?.kind !== 'file' && dirToRefreshHandle) {
-                    (async () => {
-                        try {
-                           fileToSelect!.handle = await dirToRefreshHandle.getFileHandle(itemNameFromPrompt);
-                        } catch(e) { console.error("Failed to get handle for newly created file (explorer)", e);}
-                    })();
-                }
+                fileToSelect = findItemByPathRecursive(currentFiles, newItemFullPath);
                 return currentFiles; 
             });
 
@@ -466,45 +407,40 @@ export default function IdePage() {
                  await handleSelectFile(fileToSelect);
                  setEditorContent(''); 
             } else {
-                 console.warn("Could not auto-select newly created file from explorer action.");
+                 console.warn("Could not auto-select newly created file from explorer action. Path was:", newItemFullPath);
             }
-        }, 400); // Timeout for state updates and FS operations to settle
+        }, 400); 
       }
   };
 
   const handleRenameItem = async (itemPath: string) => {
     if (!rootDirectoryHandle || !openedDirectoryName) {
-      toast({ variant: "destructive", title: "Erro", description: "Nenhuma pasta aberta." });
+      toast({ variant: "destructive", title: "Erro", description: "No folder open." });
       return;
     }
     
     const itemToRename = findItemByPathRecursive(files, itemPath);
     if (!itemToRename) {
-      toast({ variant: "destructive", title: "Erro", description: "Item não encontrado." });
+      toast({ variant: "destructive", title: "Erro", description: "Item not found." });
       return;
     }
 
     if (itemPath === openedDirectoryName) {
-      toast({ variant: "destructive", title: "Não Permitido", description: "Não é possível renomear a pasta raiz aberta." });
+      toast({ variant: "destructive", title: "Não Permitido", description: "Cannot rename the root opened folder." });
       return;
     }
 
-    const newName = prompt(`Digite o novo nome para "${itemToRename.name}":`, itemToRename.name);
+    const newName = prompt(`Enter new name for "${itemToRename.name}":`, itemToRename.name);
     if (!newName || newName.trim() === '' || newName === itemToRename.name || newName.includes('/') || newName.includes('\\')) {
-      if (newName !== null) { // Not cancelled
-        toast({ title: "Nome Inválido", description: "Renomeação cancelada, nome inalterado ou inválido." });
+      if (newName !== null) { 
+        toast({ title: "Nome Inválido", description: "Rename cancelled, name unchanged or invalid." });
       } else {
-        toast({ title: "Cancelado", description: "Renomeação cancelada." });
+        toast({ title: "Cancelado", description: "Rename cancelled." });
       }
       return;
     }
 
     const parentItemPath = getParentPath(itemPath); 
-    // parentItemPath is the full path of the parent dir, e.g. "MyProject/src" or "MyProject" or null (if itemPath is "MyProject/file.txt", parentItemPath is "MyProject")
-    // getDirectoryHandleByPath needs the full path of the directory it should return.
-    // If itemPath = "MyProject/file.txt", parentItemPath = "MyProject". getDirectoryHandleByPath("MyProject", rootDirHandle)
-    // If itemPath = "MyProject/src/file.txt", parentItemPath = "MyProject/src". getDirectoryHandleByPath("MyProject/src", rootDirHandle)
-    // If item is in root, parentItemPath is openedDirectoryName.
     
     const actualParentDirHandle = parentItemPath === null 
       ? rootDirectoryHandle 
@@ -512,7 +448,7 @@ export default function IdePage() {
 
 
     if (!actualParentDirHandle) {
-      toast({ variant: "destructive", title: "Erro", description: `Diretório pai de "${itemPath}" não encontrado.` });
+      toast({ variant: "destructive", title: "Erro", description: `Parent directory of "${itemPath}" not found.` });
       return;
     }
 
@@ -522,42 +458,39 @@ export default function IdePage() {
       } else {
         await actualParentDirHandle.getDirectoryHandle(newName);
       }
-      toast({ variant: "destructive", title: "Erro ao Renomear", description: `Um item chamado "${newName}" já existe.` });
+      toast({ variant: "destructive", title: "Erro ao Renomear", description: `An item named "${newName}" already exists.` });
       return;
     } catch (e) {
       if (!(e instanceof DOMException && e.name === 'NotFoundError')) {
-        console.error("Erro ao verificar existência para renomear:", e);
-        toast({ variant: "destructive", title: "Erro", description: "Falha ao verificar existência do novo nome."});
+        console.error("Error checking existence for rename:", e);
+        toast({ variant: "destructive", title: "Erro", description: "Failed to check existence of new name."});
         return;
       }
     }
     
     try {
       if (!itemToRename.handle) {
-        toast({ variant: "destructive", title: "Erro", description: "Handle do item não encontrado." });
+        toast({ variant: "destructive", title: "Erro", description: "Item handle not found." });
         return;
       }
       
-      const handleToMove = itemToRename.handle as FileSystemFileHandle | FileSystemDirectoryHandle; // Type assertion
+      const handleToMove = itemToRename.handle as FileSystemFileHandle | FileSystemDirectoryHandle; 
       if (typeof (handleToMove as any).move === 'function') {
          await (handleToMove as any).move(actualParentDirHandle, newName);
       } else {
-        // Fallback for browsers not supporting move, or specific handles. This might be complex.
-        // For simplicity, we'll rely on move being available for now or show an error.
         console.error("FileSystemHandle.move() is not supported for this item or browser.");
         toast({
           variant: "destructive",
           title: "Operação Não Suportada",
-          description: "A renomeação pode não ser totalmente suportada pelo seu navegador. Tente recarregar a pasta.",
+          description: "Rename may not be fully supported by your browser. Try reloading the folder.",
         });
-        // Attempt to refresh anyway, in case a manual move was done or for partial support
         await refreshDirectoryInState(parentItemPath || openedDirectoryName, actualParentDirHandle);
         return;
       }
       
       await refreshDirectoryInState(parentItemPath || openedDirectoryName, actualParentDirHandle);
 
-      toast({ title: "Renomeado", description: `"${itemToRename.name}" foi renomeado para "${newName}".` });
+      toast({ title: "Renomeado", description: `"${itemToRename.name}" was renamed to "${newName}".` });
 
       const newFullPath = parentItemPath ? `${parentItemPath}/${newName}` : `${openedDirectoryName}/${newName}`;
       if (activeFile) {
@@ -579,10 +512,8 @@ export default function IdePage() {
             id: newFullPath,
             handle: newHandle || prev!.handle, 
           }));
-          if (itemToRename.type === 'file' && editorContent && newHandle?.kind === 'file') {
-            // Content remains, handle is updated
-          } else if (itemToRename.type === 'folder') {
-            setEditorContent(''); // Clear editor if a folder was renamed and active
+          if (itemToRename.type === 'folder') {
+            setEditorContent(''); 
           }
 
         } else if (itemToRename.type === 'folder' && activeFile.path.startsWith(itemPath + '/')) { 
@@ -596,8 +527,8 @@ export default function IdePage() {
       }
 
     } catch (error) {
-      console.error("Erro ao renomear:", error);
-      toast({ variant: "destructive", title: "Erro ao Renomear", description: `Não foi possível renomear "${itemToRename.name}". Verifique as permissões ou se o item está em uso.` });
+      console.error("Error renaming:", error);
+      toast({ variant: "destructive", title: "Erro ao Renomear", description: `Could not rename "${itemToRename.name}". Check permissions or if the item is in use.` });
       await refreshDirectoryInState(parentItemPath || openedDirectoryName, actualParentDirHandle);
     }
   };
@@ -614,31 +545,41 @@ export default function IdePage() {
 
     let newOutputLines: string[] = [];
 
-    if (!openedDirectoryName && cmd !== 'clear') {
-        newOutputLines.push('Nenhuma pasta aberta. Use o botão "Abrir Pasta" no cabeçalho.');
+    if (!openedDirectoryName && cmd !== 'clear' && cmd !== 'help') {
+        newOutputLines.push('No folder open. Use the "Open Folder" button in the header.');
         setTerminalOutput(prev => [...prev, ...newOutputLines]);
         return;
     }
 
     switch (cmd) {
+      case 'help':
+        newOutputLines.push('Available commands:');
+        newOutputLines.push('  help             - Show this help message.');
+        newOutputLines.push('  ls               - List directory contents.');
+        newOutputLines.push('  cd <directory>   - Change current directory.');
+        newOutputLines.push('  cd ..            - Go to parent directory.');
+        newOutputLines.push('  cd ~ or cd /     - Go to root of opened folder.');
+        newOutputLines.push('  mkdir <name>     - Create a new directory.');
+        newOutputLines.push('  touch <name>     - Create a new empty file.');
+        newOutputLines.push('  clear            - Clear the terminal screen.');
+        break;
       case 'ls': {
-        // terminalCwdPath is the full path of the CWD, e.g. "MyProject/src" or "MyProject" or null for root
         const dirToListPath = terminalCwdPath === null ? openedDirectoryName : terminalCwdPath;
         let itemsToList: FileOrFolder[] = [];
 
-        if (dirToListPath === openedDirectoryName) { // Root of opened folder
+        if (dirToListPath === openedDirectoryName) { 
             itemsToList = files;
         } else {
-            const cwdItem = findItemByPathRecursive(files, dirToListPath!); // dirToListPath won't be null here
+            const cwdItem = findItemByPathRecursive(files, dirToListPath!); 
             if (cwdItem && cwdItem.type === 'folder' && cwdItem.children) {
                 itemsToList = cwdItem.children;
             } else {
-                newOutputLines.push(`ls: não foi possível acessar '${dirToListPath}': Diretório não encontrado ou não é uma pasta`);
+                newOutputLines.push(`ls: cannot access '${dirToListPath}': Directory not found or not a folder`);
                 break;
             }
         }
         if (itemsToList.length === 0) {
-          newOutputLines.push('(vazio)');
+          newOutputLines.push('(empty)');
         } else {
           newOutputLines.push(...itemsToList.map(item => `${item.name}${item.type === 'folder' ? '/' : ''}`));
         }
@@ -647,21 +588,21 @@ export default function IdePage() {
       case 'cd': {
         if (args.length === 0 || args[0] === '~' || args[0] === '/') {
           setTerminalCwdPath(null); 
-          newOutputLines.push(`Navegando para: ${openedDirectoryName || '~'}`);
+          newOutputLines.push(`Navigating to: ${openedDirectoryName || '~'}`);
           break;
         }
         const targetDirName = args[0];
         if (targetDirName === '..') {
           if (terminalCwdPath === null) {
-            newOutputLines.push('Já está no diretório raiz da pasta aberta.');
+            newOutputLines.push('Already at the root of the opened folder.');
           } else {
-            const parent = getParentPath(terminalCwdPath); // This will be "MyProject" if CWD was "MyProject/src"
-            if (parent === openedDirectoryName || parent === null) { // Navigating up to the root
+            const parent = getParentPath(terminalCwdPath); 
+            if (parent === openedDirectoryName || parent === null) { 
                 setTerminalCwdPath(null);
-                newOutputLines.push(`Navegando para: ${openedDirectoryName || '~'}`);
+                newOutputLines.push(`Navigating to: ${openedDirectoryName || '~'}`);
             } else {
                 setTerminalCwdPath(parent);
-                newOutputLines.push(`Navegando para: ${parent ? parent.substring(parent.lastIndexOf('/') + 1) : (openedDirectoryName || '~')}`);
+                newOutputLines.push(`Navigating to: ${parent ? parent.substring(parent.lastIndexOf('/') + 1) : (openedDirectoryName || '~')}`);
             }
           }
         } else {
@@ -671,48 +612,41 @@ export default function IdePage() {
 
           const targetItem = currentDirChildren.find(item => item.name === targetDirName && item.type === 'folder');
           if (targetItem) {
-            setTerminalCwdPath(targetItem.path); // targetItem.path is the full path
-            newOutputLines.push(`Navegando para: ${targetItem.name}`);
+            setTerminalCwdPath(targetItem.path); 
+            newOutputLines.push(`Navigating to: ${targetItem.name}`);
           } else {
-            newOutputLines.push(`cd: ${targetDirName}: Diretório não encontrado em '${baseDirForSearch || openedDirectoryName}'.`);
+            newOutputLines.push(`cd: ${targetDirName}: Directory not found in '${baseDirForSearch || openedDirectoryName}'.`);
           }
         }
         break;
       }
       case 'mkdir': {
         if (args.length === 0) {
-          newOutputLines.push('mkdir: operando faltando');
-          newOutputLines.push('Tente: mkdir <nome_do_diretório>');
+          newOutputLines.push('mkdir: missing operand');
+          newOutputLines.push('Try: mkdir <directory_name>');
           break;
         }
         const dirName = args[0];
-        // targetContainerPath for create is current terminalCwdPath, or openedDirectoryName if terminalCwdPath is null (root)
-        const containerPath = terminalCwdPath === null ? openedDirectoryName : terminalCwdPath;
-        const success = await handleCreateFileSystemItemInternal('folder', dirName, containerPath);
-        if (success) {
-          // Message is handled by toast
-        }
+        const containerPath = terminalCwdPath;
+        await handleCreateFileSystemItemInternal('folder', dirName, containerPath);
         break;
       }
       case 'touch': {
         if (args.length === 0) {
-          newOutputLines.push('touch: operando faltando');
-          newOutputLines.push('Tente: touch <nome_do_arquivo>');
+          newOutputLines.push('touch: missing file operand');
+          newOutputLines.push('Try: touch <file_name>');
           break;
         }
         const fileName = args[0];
-        const containerPath = terminalCwdPath === null ? openedDirectoryName : terminalCwdPath;
-        const success = await handleCreateFileSystemItemInternal('file', fileName, containerPath);
-        if (success) {
-          // Message is handled by toast
-        }
+        const containerPath = terminalCwdPath;
+        await handleCreateFileSystemItemInternal('file', fileName, containerPath);
         break;
       }
       case 'clear':
-        setTerminalOutput([`Terminal limpo. ${getTerminalPromptDisplay()}`]); // Use current prompt
+        setTerminalOutput([`Terminal cleared. Type "help" for available commands. ${getTerminalPromptDisplay()}`]); 
         return; 
       default:
-        newOutputLines.push(`Comando não encontrado: ${cmd}`);
+        newOutputLines.push(`Command not found: ${cmd}. Type "help" for available commands.`);
     }
     
     setTimeout(() => {
@@ -721,7 +655,7 @@ export default function IdePage() {
         }
     }, 100);
 
-  }, [files, openedDirectoryName, terminalCwdPath, getTerminalPromptDisplay, toast, getDirectoryHandleByPath, refreshDirectoryInState, handleSelectFile, rootDirectoryHandle, handleCreateFileSystemItemInternal]);
+  }, [files, openedDirectoryName, terminalCwdPath, getTerminalPromptDisplay, toast, handleCreateFileSystemItemInternal, handleSelectFile]);
 
 
   const handleGenerateFromComment = async (comment: string, existingCode: string) => {
@@ -769,43 +703,42 @@ export default function IdePage() {
 
   const handleDeleteItem = async (itemPath: string) => {
     if (!rootDirectoryHandle || !openedDirectoryName) {
-      toast({ variant: "destructive", title: "Erro", description: "Nenhuma pasta aberta." });
+      toast({ variant: "destructive", title: "Erro", description: "No folder open." });
       return;
     }
 
     const itemToDelete = findItemByPathRecursive(files, itemPath);
     if (!itemToDelete) {
-      toast({ variant: "destructive", title: "Erro", description: "Item não encontrado para deletar." });
+      toast({ variant: "destructive", title: "Erro", description: "Item not found to delete." });
       return;
     }
 
-    if (itemPath === openedDirectoryName) { // Cannot delete the root opened folder itself
-      toast({ variant: "destructive", title: "Não Permitido", description: "Não é possível excluir a pasta raiz aberta." });
+    if (itemPath === openedDirectoryName) { 
+      toast({ variant: "destructive", title: "Não Permitido", description: "Cannot delete the root opened folder." });
       return;
     }
 
-    const confirmed = window.confirm(`Tem certeza que deseja excluir "${itemToDelete.name}"? Esta ação não pode ser desfeita.`);
+    const confirmed = window.confirm(`Are you sure you want to delete "${itemToDelete.name}"? This action cannot be undone.`);
     if (!confirmed) {
-      toast({ title: "Cancelado", description: "Exclusão cancelada." });
+      toast({ title: "Cancelado", description: "Deletion cancelled." });
       return;
     }
 
     const parentItemPath = getParentPath(itemPath);
-    // If parentItemPath is null, it means itemToDelete is directly under root, so its parent is rootDirectoryHandle
     const parentDirHandle = parentItemPath === null 
         ? rootDirectoryHandle 
         : await getDirectoryHandleByPath(parentItemPath, rootDirectoryHandle);
 
 
     if (!parentDirHandle) {
-      toast({ variant: "destructive", title: "Erro", description: `Diretório pai de "${itemPath}" não encontrado.` });
+      toast({ variant: "destructive", title: "Erro", description: `Parent directory of "${itemPath}" not found.` });
       return;
     }
 
     try {
       await parentDirHandle.removeEntry(itemToDelete.name, { recursive: itemToDelete.type === 'folder' });
       
-      toast({ title: "Excluído", description: `"${itemToDelete.name}" foi excluído com sucesso.` });
+      toast({ title: "Excluído", description: `"${itemToDelete.name}" was deleted successfully.` });
 
       if (activeFile) {
         if (activeFile.path === itemPath || (itemToDelete.type === 'folder' && activeFile.path.startsWith(itemPath + '/'))) {
@@ -818,8 +751,8 @@ export default function IdePage() {
       await refreshDirectoryInState(pathToRefresh, parentDirHandle);
 
     } catch (error) {
-      console.error("Erro ao excluir item:", error);
-      toast({ variant: "destructive", title: "Erro ao Excluir", description: `Não foi possível excluir "${itemToDelete.name}". Verifique as permissões ou se o item está em uso.` });
+      console.error("Error deleting item:", error);
+      toast({ variant: "destructive", title: "Erro ao Excluir", description: `Could not delete "${itemToDelete.name}". Check permissions or if item is in use.` });
       const pathToRefreshOnError = parentItemPath === null ? openedDirectoryName : parentItemPath;
       await refreshDirectoryInState(pathToRefreshOnError, parentDirHandle);
     }
@@ -852,7 +785,7 @@ export default function IdePage() {
             onContentChange={handleEditorChange}
             onGenerateFromComment={handleGenerateFromComment}
             onCompleteFromContext={handleCompleteFromContext}
-            fileName={activeFile?.name || (files.length === 0 && !openedDirectoryName ? "Nenhum arquivo aberto" : (openedDirectoryName && !activeFile ? openedDirectoryName : "Selecione um arquivo"))}
+            fileName={activeFile?.name || (files.length === 0 && !openedDirectoryName ? "No file open" : (openedDirectoryName && !activeFile ? openedDirectoryName : "Select a file"))}
           />
           <TerminalResizableWrapper initialHeight={180} minHeight={80} maxHeight={400}>
             <IntegratedTerminal
