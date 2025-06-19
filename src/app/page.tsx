@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -11,8 +12,6 @@ import type { FileOrFolder } from '@/types';
 import { generateCodeFromComment } from '@/ai/flows/ai-code-completion';
 import { aiCodeCompletionFromContext } from '@/ai/flows/ai-code-completion-from-context';
 import { useToast } from '@/hooks/use-toast';
-
-// Removido initialFiles, começaremos com uma lista vazia.
 
 export default function IdePage() {
   const [files, setFiles] = useState<FileOrFolder[]>([]);
@@ -75,7 +74,6 @@ export default function IdePage() {
       toast({ title: "Pasta Aberta", description: `Pasta "${directoryHandle.name}" carregada.` });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        // User cancelled the picker
         console.log("Seleção de pasta cancelada pelo usuário.");
       } else {
         console.error("Erro ao abrir pasta:", error);
@@ -95,7 +93,6 @@ export default function IdePage() {
           const fileData = await fsFileHandle.getFile();
           const text = await fileData.text();
           setEditorContent(text);
-          // Atualizar o conteúdo no estado para não recarregar
           setFiles(prevFiles => {
             const updateContent = (items: FileOrFolder[]): FileOrFolder[] => 
               items.map(item => {
@@ -113,16 +110,14 @@ export default function IdePage() {
       } else {
         setEditorContent(`// Conteúdo para ${file.name} (sem handle ou não é arquivo)\n`);
       }
-    } else { // Folder selected
-      setActiveFile(file); // Show as selected in explorer
-      // Don't change editor content for folders
+    } else { 
+      setActiveFile(file); 
     }
   }, []);
 
   const handleEditorChange = useCallback((content: string) => {
     setEditorContent(content);
     if (activeFile && activeFile.type === 'file') {
-      // Atualiza o conteúdo em memória. Para salvar no disco real, seria necessário usar o file.handle.createWritable()
       setFiles(prevFiles => {
         const updateFileContent = (items: FileOrFolder[]): FileOrFolder[] => {
           return items.map(item => {
@@ -139,6 +134,43 @@ export default function IdePage() {
       });
     }
   }, [activeFile]);
+
+  const handleSaveFile = async () => {
+    if (!activeFile || activeFile.type !== 'file' || !activeFile.handle) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao Salvar',
+        description: 'Nenhum arquivo selecionado ou o arquivo não pode ser salvo.',
+      });
+      return;
+    }
+
+    try {
+      const fileHandle = activeFile.handle as FileSystemFileHandle;
+      const writable = await fileHandle.createWritable();
+      await writable.write(editorContent);
+      await writable.close();
+      toast({
+        title: 'Arquivo Salvo',
+        description: `"${activeFile.name}" foi salvo com sucesso.`,
+      });
+    } catch (error) {
+      console.error('Erro ao salvar arquivo:', error);
+      if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) {
+           toast({
+              variant: 'destructive',
+              title: 'Permissão Negada',
+              description: 'Permissão para salvar o arquivo foi negada. Você pode precisar conceder permissões novamente.',
+          });
+      } else {
+          toast({
+              variant: 'destructive',
+              title: 'Erro ao Salvar',
+              description: `Não foi possível salvar "${activeFile.name}".`,
+          });
+      }
+    }
+  };
 
   const handleCommandSubmit = useCallback((command: string) => {
     setTerminalOutput(prev => [...prev, `$ ${command}`]);
@@ -173,7 +205,10 @@ export default function IdePage() {
   const handleCompleteFromContext = async (codeSnippet: string, cursorPosition: number) => {
     toast({ title: "AI", description: "Gerando autocompletar..." });
     try {
-      const result = await aiCodeCompletionFromContext({ codeSnippet, cursorPosition, programmingLanguage: 'typescript' });
+      // Exemplo de como enviar outros arquivos para contexto (opcional, pode ser adaptado):
+      // const otherFilesContext = files.filter(f => f.type === 'file' && f.id !== activeFile?.id).slice(0, 2) // Limitar para não sobrecarregar
+      //   .map(f => ({ filePath: f.path, fileContent: f.content || '' }));
+      const result = await aiCodeCompletionFromContext({ codeSnippet, cursorPosition, programmingLanguage: 'typescript' /*, otherFiles: otherFilesContext */ });
       if (result.suggestions && result.suggestions.length > 0) {
         const suggestion = result.suggestions[0];
         setEditorContent(prev => {
@@ -189,7 +224,6 @@ export default function IdePage() {
     }
   };
 
-  // Placeholder file/folder operations (não modificam o sistema de arquivos real)
   const logAction = (action: string, path: string | null) => toast({ title: "Ação de Arquivo (Demo)", description: `${action}: ${path || 'raiz'} (não salva no disco)`});
   const handleCreateFile = (parentPath: string | null) => logAction("Criar Arquivo em", parentPath);
   const handleCreateFolder = (parentPath: string | null) => logAction("Criar Pasta em", parentPath);
@@ -201,6 +235,8 @@ export default function IdePage() {
       <IdeHeader 
         onOpenPreferences={() => setIsPreferencesOpen(true)} 
         onOpenFolder={handleOpenFolder}
+        onSaveFile={handleSaveFile}
+        activeFile={activeFile}
       />
       <main className="flex flex-1 overflow-hidden">
         <FileExplorer
@@ -233,3 +269,5 @@ export default function IdePage() {
     </div>
   );
 }
+
+    
