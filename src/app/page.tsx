@@ -529,42 +529,7 @@ export default function IdePage() {
         return;
       }
       
-      // The FileSystemHandle.move() method is not standard / widely supported for rename.
-      // The common way is to copy and delete, or rely on browser-specific implementations
-      // if available. For simplicity with File System Access API, we might need to re-evaluate.
-      // Let's assume for now we are just "logically" renaming and then refreshing.
-      // True rename would involve moving the handle or content.
-      // A robust solution might involve creating new and deleting old if .move() isn't available.
-      // For this prototype, we will simulate by trying to "move" if available, then refresh.
-      
       const handleToMove = itemToRename.handle as FileSystemFileHandle | FileSystemDirectoryHandle; 
-      // Check if 'move' exists and is a function (it's not standard on FileSystemFileHandle/DirectoryHandle)
-      // This 'move' is typically on FileSystemDirectoryEntry/FileSystemFileEntry from older APIs, not FS Access API.
-      // The FS Access API does not have a direct .move() or .rename().
-      // To rename, one would copy to new name and delete old, or implement complex logic.
-      // For now, we will skip trying to move, and just refresh. This means the user has to manually rename in OS for now.
-      // THIS IS A SIMPLIFICATION DUE TO LACK OF STANDARD RENAME IN FS ACCESS API.
-      // A more robust solution would involve reading content, creating new file/dir, writing/copying children, then deleting old.
-      // Or, we tell the user renaming is not directly supported this way.
-      // Let's proceed with a "refresh" strategy. The user is prompted for a new name,
-      // and we refresh the parent. If they renamed it externally, it might show up.
-      
-      // Given the limitations, we'll show a message that direct rename isn't fully supported.
-      // We'll refresh the parent directory. If the user renames outside, it might reflect on refresh.
-      console.warn("FileSystemHandle.move() is not directly available in File System Access API for renaming. Refreshing parent.");
-      // We will proceed as if the rename was requested, and then refresh the parent.
-      // If the backend (actual file system) supports this action via some other means, this refresh would show it.
-      // Since we don't have a direct API for rename, we'll update the state optimistically
-      // and rely on refresh to catch up if an external rename happened.
-
-      // For a true prototype rename with FS Access API:
-      // 1. For file: read content, create new file handle with new name, write content, delete old file handle.
-      // 2. For folder: create new folder handle, iterate old folder, recursively copy/create children, delete old folder handle.
-      // This is complex. Let's assume the user is notified that rename is via prompt and they need to ensure it happens.
-      // OR, we remove the rename button if we can't reliably implement it.
-      // For now, let's keep the rename UI and just refresh.
-
-      // Attempting a "move" (not standard, likely won't work with FS Access API handles)
       let moved = false;
       if (typeof (handleToMove as any).move === 'function') {
          try {

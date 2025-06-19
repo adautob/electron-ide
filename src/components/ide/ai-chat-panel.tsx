@@ -61,6 +61,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeContent, language }) => {
   );
 };
 
+const MIN_PANEL_WIDTH = 280; // Minimum width for the chat panel
+const DEFAULT_PANEL_WIDTH = 384; // Equivalent to w-96
+
 export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -68,6 +71,53 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragHandleRef = useRef<HTMLDivElement>(null);
+  const initialMouseX = useRef(0);
+  const initialPanelWidth = useRef(0);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (dragHandleRef.current) {
+      setIsDragging(true);
+      initialMouseX.current = e.clientX;
+      initialPanelWidth.current = panelWidth;
+      e.preventDefault();
+    }
+  };
+
+  const handleMouseMove = useCallback((event: MouseEvent) => {
+    if (!isDragging) return;
+    const deltaX = event.clientX - initialMouseX.current;
+    let newWidth = initialPanelWidth.current - deltaX;
+
+    if (newWidth < MIN_PANEL_WIDTH) newWidth = MIN_PANEL_WIDTH;
+    // No max width, let it expand
+    
+    setPanelWidth(newWidth);
+  }, [isDragging]);
+
+  const handleMouseUp = useCallback(() => {
+    if (isDragging) {
+      setIsDragging(false);
+    }
+  }, [isDragging]);
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
 
   const scrollToBottom = () => {
     if (scrollAreaRef.current) {
@@ -106,7 +156,7 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
         
         if (typeof contentToUse === 'string') {
           filesForAI.push({
-            filePath: item.path,
+            filePath: item.path, // Use full path for AI context
             fileContent: contentToUse,
           });
         }
@@ -209,7 +259,18 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
   };
 
   return (
-    <Card className="w-96 flex flex-col h-full border-l border-border rounded-none shrink-0">
+    <Card
+      style={{ width: `${panelWidth}px` }}
+      className="flex flex-col h-full border-l border-border rounded-none shrink-0 relative"
+    >
+      <div
+        ref={dragHandleRef}
+        onMouseDown={handleMouseDown}
+        className="absolute top-0 left-0 h-full w-3 transform -translate-x-1/2 cursor-col-resize flex items-center justify-center z-20 group"
+        title="Redimensionar painel"
+      >
+        <div className="h-10 w-1 bg-border rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-150"></div>
+      </div>
       <CardHeader className="p-3 border-b border-border">
         <CardTitle className="text-base font-semibold font-headline">AI Chat</CardTitle>
       </CardHeader>
