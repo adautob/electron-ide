@@ -8,9 +8,10 @@ import { IntegratedTerminal } from '@/components/ide/integrated-terminal';
 import { IdeHeader } from '@/components/ide/ide-header';
 import { PreferencesDialog } from '@/components/ide/preferences-dialog';
 import { TerminalResizableWrapper } from '@/components/ide/terminal-resizable-wrapper';
+import { AiChatPanel } from '@/components/ide/ai-chat-panel';
 import type { FileOrFolder } from '@/types';
 import { generateCodeFromComment } from '@/ai/flows/ai-code-completion';
-import { aiCodeCompletionFromContext } from '@/ai/flows/ai-code-completion-from-context';
+import { aiCodeCompletionFromContext, type AICodeCompletionFromContextInput } from '@/ai/flows/ai-code-completion-from-context';
 import { useToast } from '@/hooks/use-toast';
 
 // Helper function to find an item by path in a nested structure
@@ -32,7 +33,7 @@ const findItemByPathRecursive = (items: FileOrFolder[], path: string): FileOrFol
 // Helper function to get the parent path of a file/folder path
 const getParentPathRecursive = (itemPath: string): string | null => {
   if (!itemPath.includes('/')) {
-    return null; // Item is at root, parent is the opened directory itself (represented by null path for getDirectoryHandleByPath)
+    return null; 
   }
   return itemPath.substring(0, itemPath.lastIndexOf('/'));
 };
@@ -139,7 +140,7 @@ export default function IdePage() {
       }
     } else { 
       setActiveFile(file); 
-      setEditorContent(''); // Clear editor if a folder is selected
+      setEditorContent(''); 
     }
   }, [toast]);
 
@@ -175,7 +176,7 @@ export default function IdePage() {
 
     try {
       const fileHandle = activeFile.handle as FileSystemFileHandle;
-      // Check for requestPermission method (newer API)
+      
       if (typeof fileHandle.requestPermission === 'function') {
         const permission = await fileHandle.requestPermission({ mode: 'readwrite' });
         if (permission !== 'granted') {
@@ -221,11 +222,8 @@ export default function IdePage() {
     for (const segment of pathSegments) {
         if (!currentHandle) return null;
         try {
-            // Try to get directory handle directly
             currentHandle = await currentHandle.getDirectoryHandle(segment);
         } catch (e) {
-             // Fallback: If direct getDirectoryHandle fails (e.g., after rename, handle might be stale for path resolution)
-             // try to find it in our state 'files' if it's a known directory.
              console.warn(`Falha ao obter handle para "${segment}" em "${path}" diretamente, tentando encontrar no estado...`, e);
              
              let accumulatedPath = '';
@@ -298,18 +296,15 @@ export default function IdePage() {
       return;
     }
     
-    // Check if item already exists
     try {
         if (type === 'file') {
             await parentDirHandle.getFileHandle(itemName);
         } else {
             await parentDirHandle.getDirectoryHandle(itemName);
         }
-        // If we reach here, it means the item exists
         toast({ variant: "destructive", title: "Erro ao Criar", description: `Um item chamado "${itemName}" já existe.` });
         return;
     } catch (e) {
-        // If it's a NotFoundError, it's good, means we can create it.
         if (!(e instanceof DOMException && e.name === 'NotFoundError')) {
             console.error("Erro ao verificar existência:", e);
             toast({ variant: "destructive", title: "Erro", description: "Falha ao verificar existência do item."});
@@ -330,15 +325,12 @@ export default function IdePage() {
       
       toast({ title: `${type === 'file' ? 'Arquivo Criado' : 'Pasta Criada'}`, description: `"${itemName}" foi criado com sucesso.` });
 
-      // If a file was created, select it and clear the editor
       if (type === 'file' && newItemHandle.kind === 'file') {
         const newFilePath = targetDirectoryPath ? `${targetDirectoryPath}/${itemName}` : itemName;
         
-        // Delay slightly to allow state to potentially update
         setTimeout(async () => {
             let fileToSelect: FileOrFolder | null = null;
             
-            // Ensure state is updated before trying to find the file
             await refreshDirectoryInState(pathForRefresh, parentDirHandle);
 
             setFiles(currentFiles => {
@@ -354,24 +346,18 @@ export default function IdePage() {
                 };
                 fileToSelect = findNewlyCreatedFile(currentFiles, newFilePath);
                 
-                // If fileToSelect is found, ensure its handle is up-to-date.
-                // This is crucial because the processDirectory might recreate the item,
-                // and we want to use the handle we just created.
                 if (fileToSelect && !fileToSelect.handle && newItemHandle.kind === 'file') {
                     fileToSelect.handle = newItemHandle as FileSystemFileHandle;
                 } else if (fileToSelect && fileToSelect.handle?.kind !== 'file' && newItemHandle.kind === 'file') {
-                    // This case might occur if a stale handle was somehow present
                     fileToSelect.handle = newItemHandle as FileSystemFileHandle;
                 }
-                return currentFiles; // Return currentFiles or updatedFiles based on your logic
+                return currentFiles; 
             });
 
             if (fileToSelect) {
                  await handleSelectFile(fileToSelect);
-                 setEditorContent(''); // Clear editor for new file
+                 setEditorContent(''); 
             } else {
-                // Fallback if not immediately found in state (should be rare with await refresh)
-                // Create a temporary FileOrFolder object to pass to handleSelectFile
                 const tempFileToSelect : FileOrFolder = { 
                     id: newFilePath, 
                     name: itemName, 
@@ -382,7 +368,7 @@ export default function IdePage() {
                 await handleSelectFile(tempFileToSelect);
                 setEditorContent('');
             }
-        }, 250); // Adjust delay if needed, or explore more robust state update signals
+        }, 250); 
       }
 
     } catch (error) {
@@ -403,7 +389,6 @@ export default function IdePage() {
       return;
     }
 
-    // Prevent renaming the root opened folder directly via this UI
     if (itemPath === openedDirectoryName || (itemToRename.handle && itemToRename.handle === rootDirectoryHandle)) {
       toast({ variant: "destructive", title: "Não Permitido", description: "Não é possível renomear a pasta raiz aberta." });
       return;
@@ -423,7 +408,6 @@ export default function IdePage() {
       return;
     }
 
-    // Check if an item with the new name already exists
     try {
       if (itemToRename.type === 'file') {
         await parentDirHandle.getFileHandle(newName);
@@ -446,11 +430,9 @@ export default function IdePage() {
         return;
       }
       
-      // The .move() method is on the FileSystemHandle itself, not the parent.
-      // It can take either just the new name (to move within the same directory)
-      // or a new directory handle and a new name.
-      if (typeof (itemToRename.handle as any).move === 'function') {
-        await (itemToRename.handle as any).move(newName);
+      const handleToMove = itemToRename.handle as any; // FileSystemFileHandle or FileSystemDirectoryHandle
+      if (typeof handleToMove.move === 'function') {
+         await handleToMove.move(newName);
       } else {
         console.error("FileSystemHandle.move() is not supported for this item or browser.");
         toast({
@@ -466,11 +448,9 @@ export default function IdePage() {
 
       toast({ title: "Renomeado", description: `"${itemToRename.name}" foi renomeado para "${newName}".` });
 
-      // Update activeFile if it was the one renamed or inside a renamed folder
       const newFullPath = parentPath ? `${parentPath}/${newName}` : newName;
       if (activeFile) {
-        if (activeFile.path === itemPath) { // Renamed item was active
-          // Fetch the new handle for the active file
+        if (activeFile.path === itemPath) { 
           let newHandle: FileSystemFileHandle | FileSystemDirectoryHandle | undefined;
           try {
             if (itemToRename.type === 'file') {
@@ -480,23 +460,20 @@ export default function IdePage() {
             }
           } catch (err) {
             console.error("Error fetching handle for renamed item:", err);
-            // Keep old handle if new one can't be fetched, though this might lead to issues
           }
           setActiveFile(prev => ({
             ...prev!,
             name: newName,
             path: newFullPath,
             id: newFullPath,
-            handle: newHandle || prev!.handle, // Use new handle, or fallback to old one if fetch fails
+            handle: newHandle || prev!.handle, 
           }));
-        } else if (itemToRename.type === 'folder' && activeFile.path.startsWith(itemPath + '/')) { // Active file was inside the renamed folder
+        } else if (itemToRename.type === 'folder' && activeFile.path.startsWith(itemPath + '/')) { 
             const newActiveFilePath = activeFile.path.replace(itemPath, newFullPath);
             setActiveFile(prev => ({
                 ...prev!,
                 path: newActiveFilePath,
                 id: newActiveFilePath,
-                // Note: The handle for activeFile might become stale if it's not re-fetched based on the new path.
-                // For simplicity, we're only updating path and id here. A full re-select might be more robust.
             }));
         }
       }
@@ -504,7 +481,6 @@ export default function IdePage() {
     } catch (error) {
       console.error("Erro ao renomear:", error);
       toast({ variant: "destructive", title: "Erro ao Renomear", description: `Não foi possível renomear "${itemToRename.name}". Verifique as permissões ou se o item está em uso.` });
-      // Attempt to refresh parent directory even on error, in case the move partially succeeded or to reflect actual state
       const pathForRefreshOnError = parentDirHandle === rootDirectoryHandle ? null : parentPath;
       await refreshDirectoryInState(pathForRefreshOnError, parentDirHandle);
     }
@@ -512,7 +488,6 @@ export default function IdePage() {
 
   const handleCommandSubmit = useCallback((command: string) => {
     setTerminalOutput(prev => [...prev, `$ ${command}`]);
-    // Simulate command execution
     setTimeout(() => {
       if (command.toLowerCase() === 'ls') {
         if (openedDirectoryName) {
@@ -543,10 +518,25 @@ export default function IdePage() {
 
   const handleCompleteFromContext = async (codeSnippet: string, cursorPosition: number) => {
     toast({ title: "AI", description: "Gerando autocompletar..." });
+    
+    // Collect content of other open files or relevant files if needed
+    // For now, sending only current file context
+    const input: AICodeCompletionFromContextInput = {
+      codeSnippet,
+      cursorPosition,
+      programmingLanguage: activeFile?.name.endsWith('.ts') || activeFile?.name.endsWith('.tsx') ? 'typescript' : 
+                           activeFile?.name.endsWith('.js') || activeFile?.name.endsWith('.jsx') ? 'javascript' :
+                           activeFile?.name.endsWith('.py') ? 'python' :
+                           activeFile?.name.endsWith('.java') ? 'java' :
+                           activeFile?.name.endsWith('.css') ? 'css' :
+                           activeFile?.name.endsWith('.html') ? 'html' : 'plaintext',
+      // otherFiles: [] // Potentially populate this later
+    };
+
     try {
-      const result = await aiCodeCompletionFromContext({ codeSnippet, cursorPosition, programmingLanguage: 'typescript' }); // Assuming TS for now
+      const result = await aiCodeCompletionFromContext(input);
       if (result.suggestions && result.suggestions.length > 0) {
-        const suggestion = result.suggestions[0]; // Take the first suggestion for simplicity
+        const suggestion = result.suggestions[0];
         setEditorContent(prev => {
           return prev.substring(0, cursorPosition) + suggestion + prev.substring(cursorPosition);
         });
@@ -572,7 +562,6 @@ export default function IdePage() {
       return;
     }
 
-    // Prevent deleting the root opened folder
     if (itemPath === openedDirectoryName || (itemToDelete.handle && itemToDelete.handle === rootDirectoryHandle)) {
       toast({ variant: "destructive", title: "Não Permitido", description: "Não é possível excluir a pasta raiz aberta." });
       return;
@@ -597,7 +586,6 @@ export default function IdePage() {
       
       toast({ title: "Excluído", description: `"${itemToDelete.name}" foi excluído com sucesso.` });
 
-      // Clear active file if it was the deleted item or inside a deleted folder
       if (activeFile) {
         if (activeFile.path === itemPath || (itemToDelete.type === 'folder' && activeFile.path.startsWith(itemPath + '/'))) {
           setActiveFile(null);
@@ -605,14 +593,12 @@ export default function IdePage() {
         }
       }
       
-      // Refresh the parent directory in the state
       const pathForRefresh = parentDirHandle === rootDirectoryHandle ? null : parentPath;
       await refreshDirectoryInState(pathForRefresh, parentDirHandle);
 
     } catch (error) {
       console.error("Erro ao excluir item:", error);
       toast({ variant: "destructive", title: "Erro ao Excluir", description: `Não foi possível excluir "${itemToDelete.name}". Verifique as permissões ou se o item está em uso.` });
-       // Attempt to refresh parent directory even on error, to reflect actual state
       const pathForRefreshOnError = parentDirHandle === rootDirectoryHandle ? null : parentPath;
       await refreshDirectoryInState(pathForRefreshOnError, parentDirHandle);
     }
@@ -637,9 +623,9 @@ export default function IdePage() {
           onRenameItem={handleRenameItem}
           onDeleteItem={handleDeleteItem}
           openedDirectoryName={openedDirectoryName}
-          allFiles={files} // Pass allFiles to FileExplorer
+          allFiles={files}
         />
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden"> {/* Main content area: Editor + Terminal */}
           <CodeEditor
             content={editorContent}
             onContentChange={handleEditorChange}
@@ -654,11 +640,9 @@ export default function IdePage() {
             />
           </TerminalResizableWrapper>
         </div>
+        <AiChatPanel /> {/* AI Chat Panel */}
       </main>
       <PreferencesDialog isOpen={isPreferencesOpen} onOpenChange={setIsPreferencesOpen} />
     </div>
   );
 }
-    
-
-    
