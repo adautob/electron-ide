@@ -1,8 +1,8 @@
 
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Send } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -19,6 +19,47 @@ interface DisplayMessage extends AIChatMessage {
 interface AiChatPanelProps {
   projectFiles: FileOrFolder[];
 }
+
+interface CodeBlockProps {
+  codeContent: string;
+  language?: string;
+}
+
+const CodeBlock: React.FC<CodeBlockProps> = ({ codeContent, language }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(codeContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
+    } catch (err) {
+      console.error('Failed to copy code:', err);
+      // Optionally, show a toast error
+    }
+  };
+
+  return (
+    <div className="relative my-2 bg-muted p-3 rounded-md shadow group">
+      {language && (
+        <span className="absolute top-1 left-2 text-xs text-muted-foreground">{language}</span>
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-1 right-1 h-7 w-7 opacity-50 group-hover:opacity-100 transition-opacity"
+        onClick={handleCopy}
+        title="Copiar código"
+      >
+        {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+        <span className="sr-only">Copiar código</span>
+      </Button>
+      <pre className="whitespace-pre-wrap text-sm font-code overflow-x-auto pt-4">
+        {codeContent}
+      </pre>
+    </div>
+  );
+};
 
 export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
@@ -45,14 +86,13 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
     setInputValue(e.target.value);
   };
 
-  const prepareProjectFilesForAI = async (allProjectFiles: FileOrFolder[]): Promise<ChatInput['projectFiles']> => {
+  const prepareProjectFilesForAI = useCallback(async (allProjectFiles: FileOrFolder[]): Promise<ChatInput['projectFiles']> => {
     const filesForAI: NonNullable<ChatInput['projectFiles']> = [];
     
     const processItem = async (item: FileOrFolder) => {
       if (item.type === 'file') {
         let contentToUse: string | undefined = item.content;
 
-        // If content is not already in state (undefined or null) and there's a file handle, try to read it.
         if ((contentToUse === undefined || contentToUse === null) && item.handle && item.handle.kind === 'file') {
           try {
             const fsFileHandle = item.handle as FileSystemFileHandle;
@@ -60,11 +100,10 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
             contentToUse = await fileData.text();
           } catch (err) {
             console.warn(`[AI Chat] Could not read content for AI from file: ${item.path}. Error:`, err);
-            contentToUse = undefined; // Ensure it's undefined if read fails
+            contentToUse = undefined; 
           }
         }
         
-        // Only add the file if its content is a string (this includes empty strings).
         if (typeof contentToUse === 'string') {
           filesForAI.push({
             filePath: item.path,
@@ -84,7 +123,7 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
     }
     
     return filesForAI.length > 0 ? filesForAI : undefined;
-  };
+  }, []);
 
 
   const handleSendMessage = async (e?: React.FormEvent<HTMLFormElement>) => {
@@ -133,6 +172,42 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
     }
   };
 
+  const renderMessageContent = (content: string) => {
+    const parts = [];
+    let lastIndex = 0;
+    const codeBlockRegex = /```(?:([\w.-]+)\n)?([\s\S]*?)```/g; // Captures optional language and content
+    let match;
+  
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      // Text before the code block
+      if (match.index > lastIndex) {
+        parts.push(
+          <span key={`text-${lastIndex}`} className="whitespace-pre-wrap font-sans">
+            {content.substring(lastIndex, match.index)}
+          </span>
+        );
+      }
+      // The code block
+      const language = match[1]; // Optional language (e.g., html, javascript)
+      const code = match[2].trim(); // Trim to remove leading/trailing newlines within the block
+      parts.push(
+        <CodeBlock key={`code-${match.index}`} codeContent={code} language={language} />
+      );
+      lastIndex = codeBlockRegex.lastIndex;
+    }
+  
+    // Text remaining after the last code block
+    if (lastIndex < content.length) {
+      parts.push(
+        <span key={`text-${lastIndex}`} className="whitespace-pre-wrap font-sans">
+          {content.substring(lastIndex)}
+        </span>
+      );
+    }
+  
+    return parts.length > 0 ? <>{parts}</> : <pre className="whitespace-pre-wrap font-sans">{content}</pre>;
+  };
+
   return (
     <Card className="w-96 flex flex-col h-full border-l border-border rounded-none shrink-0">
       <CardHeader className="p-3 border-b border-border">
@@ -151,20 +226,20 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
               >
                 <div
                   className={cn(
-                    'max-w-[80%] rounded-lg px-3 py-2 text-sm shadow-sm',
+                    'max-w-[95%] rounded-lg px-3 py-2 text-sm shadow-sm',
                     msg.role === 'user'
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-secondary text-secondary-foreground'
                   )}
                 >
-                  <pre className="whitespace-pre-wrap font-sans">{msg.content}</pre>
+                  {renderMessageContent(msg.content)}
                 </div>
               </div>
             ))}
             {isLoading && (
               <div className="flex items-start">
                 <div className="max-w-[80%] rounded-lg px-3 py-2 text-sm shadow-sm bg-muted text-muted-foreground animate-pulse">
-                  AI is thinking...
+                  AI está pensando...
                 </div>
               </div>
             )}
@@ -176,7 +251,7 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
           <Input
             ref={inputRef}
             type="text"
-            placeholder="Ask AI anything..."
+            placeholder="Pergunte à IA..."
             value={inputValue}
             onChange={handleInputChange}
             className="flex-1 h-9"
@@ -185,10 +260,11 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
           />
           <Button type="submit" size="icon" className="h-9 w-9" disabled={isLoading}>
             <Send size={16} />
-            <span className="sr-only">Send message</span>
+            <span className="sr-only">Enviar mensagem</span>
           </Button>
         </form>
       </CardFooter>
     </Card>
   );
 }
+
