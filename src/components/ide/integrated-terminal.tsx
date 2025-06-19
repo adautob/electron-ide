@@ -10,9 +10,10 @@ interface IntegratedTerminalProps {
   output: string[];
   onCommandSubmit: (command: string) => void;
   currentPromptGetter?: () => string; // Optional: to get dynamic prompt
+  onTabPress?: (currentCommand: string) => Promise<string | null>;
 }
 
-export function IntegratedTerminal({ output, onCommandSubmit, currentPromptGetter }: IntegratedTerminalProps) {
+export function IntegratedTerminal({ output, onCommandSubmit, currentPromptGetter, onTabPress }: IntegratedTerminalProps) {
   const [command, setCommand] = useState('');
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -22,6 +23,26 @@ export function IntegratedTerminal({ output, onCommandSubmit, currentPromptGette
     if (command.trim()) {
       onCommandSubmit(command.trim());
       setCommand('');
+    }
+  };
+
+  const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Tab' && onTabPress) {
+      e.preventDefault();
+      const currentInputValue = e.currentTarget.value;
+      const completedValue = await onTabPress(currentInputValue);
+      if (completedValue !== null && completedValue !== currentInputValue) {
+        setCommand(completedValue);
+        // Move cursor to end after setting command for better UX
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.selectionStart = inputRef.current.selectionEnd = completedValue.length;
+          }
+        }, 0);
+      } else if (completedValue === null) {
+        // This case means suggestions were displayed by onTabPress directly updating terminalOutput
+        // We might not need to do anything here, or ensure command state reflects original input if onTabPress returned null to signify no single completion
+      }
     }
   };
 
@@ -57,6 +78,7 @@ export function IntegratedTerminal({ output, onCommandSubmit, currentPromptGette
           type="text"
           value={command}
           onChange={(e) => setCommand(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Digite seu comando aqui..."
           className="flex-1 bg-transparent border-0 h-8 p-0 focus-visible:ring-0 text-sm"
           spellCheck="false"
@@ -66,4 +88,3 @@ export function IntegratedTerminal({ output, onCommandSubmit, currentPromptGette
     </div>
   );
 }
-

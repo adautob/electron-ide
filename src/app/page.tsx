@@ -39,6 +39,10 @@ const getParentPath = (itemPath: string | null): string | null => {
   return itemPath.substring(0, itemPath.lastIndexOf('/'));
 };
 
+const KNOWN_COMMANDS = ['help', 'ls', 'cd', 'mkdir', 'touch', 'cat', 'mv', 'rm', 'clear'] as const;
+type CommandName = typeof KNOWN_COMMANDS[number];
+const COMMANDS_TAKING_ARGS: CommandName[] = ['cd', 'mkdir', 'touch', 'cat', 'mv', 'rm', 'ls'];
+
 
 export default function IdePage() {
   const [files, setFiles] = useState<FileOrFolder[]>([]);
@@ -578,7 +582,7 @@ export default function IdePage() {
 
     if (!openedDirectoryName && cmd !== 'clear' && cmd !== 'help') {
         newOutputLines.push('No folder open. Use the "Open Folder" button in the header.');
-        setTerminalOutput(prev => [...prev, ...newOutputLines, `${getTerminalPromptDisplay()} `]);
+        setTerminalOutput(prev => [...prev, ...newOutputLines, `${getTerminalPromptDisplay()} `]); // Re-add prompt after message
         return;
     }
 
@@ -769,6 +773,7 @@ export default function IdePage() {
             // Toast handles success message
         } else {
             // Toast handles error, or we can add a generic failure message here if needed
+            // Potentially add: newOutputLines.push(`mv: failed to rename '${oldName}' to '${newName}'.`);
         }
         break;
       }
@@ -870,21 +875,86 @@ export default function IdePage() {
       }
       case 'clear':
         setTerminalOutput([`Terminal cleared. Type "help" for available commands.`]);
+        // Add a slight delay for the prompt to reappear correctly after clearing.
         setTimeout(() => setTerminalOutput(prev => [...prev, `${getTerminalPromptDisplay()} `]),0);
-        return;
+        return; // Return early to avoid adding prompt twice
       default:
         newOutputLines.push(`Command not found: ${cmd}. Type "help" for available commands.`);
     }
 
+    // Add new output lines and then the prompt for the next command.
+    // Ensure prompt is added after a slight delay if other operations are async or take time.
     setTimeout(() => {
         if (newOutputLines.length > 0) {
             setTerminalOutput(prev => [...prev, ...newOutputLines, `${getTerminalPromptDisplay()} `]);
         } else {
+             // If no new output lines (e.g. successful mv), still add the prompt
              setTerminalOutput(prev => [...prev, `${getTerminalPromptDisplay()} `]);
         }
-    }, 100);
+    }, 100); // A small delay can help ensure state updates propagate if needed
 
   }, [files, openedDirectoryName, terminalCwdPath, getTerminalPromptDisplay, toast, handleCreateFileSystemItemInternal, handleSelectFile, rootDirectoryHandle, activeFile, getDirectoryHandleByPath, refreshDirectoryInState, handleRenameItem]);
+
+  const handleTerminalTabPress = useCallback(async (currentFullInput: string): Promise<string | null> => {
+    const originalInputForPrompt = currentFullInput; 
+  
+    const inputEndsWithSpace = currentFullInput.endsWith(' ');
+    const parts = currentFullInput.trim().split(/\s+/).filter(p => p.length > 0);
+  
+    if (parts.length === 0 || (parts.length === 1 && !inputEndsWithSpace)) {
+      const commandPrefix = parts[0] || ""; 
+      const matchingCommands = KNOWN_COMMANDS.filter(cmd => cmd.startsWith(commandPrefix));
+  
+      if (matchingCommands.length === 1) {
+        return matchingCommands[0] + ' ';
+      } else if (matchingCommands.length > 0) { 
+        setTerminalOutput(prev => [...prev, `\n${matchingCommands.join('  ')}`, `${getTerminalPromptDisplay()} ${originalInputForPrompt}`]);
+        return originalInputForPrompt; 
+      }
+      return originalInputForPrompt; 
+    }
+  
+    const commandName = parts[0] as CommandName;
+    if (COMMANDS_TAKING_ARGS.includes(commandName) || (commandName === 'ls' && parts.length >=1) ) {
+      const argPrefix = inputEndsWithSpace ? "" : (parts[parts.length - 1] || "");
+  
+      const dirToListPath = terminalCwdPath === null ? openedDirectoryName : terminalCwdPath;
+      if (!dirToListPath && openedDirectoryName === null) { 
+          if (inputEndsWithSpace && KNOWN_COMMANDS.includes(commandName as CommandName)) {
+              setTerminalOutput(prev => [...prev, `Cannot suggest arguments: No folder open.`, `${getTerminalPromptDisplay()} ${originalInputForPrompt}`]);
+          }
+          return originalInputForPrompt;
+      }
+      
+      let itemsInCwd: FileOrFolder[] = [];
+      if (dirToListPath === openedDirectoryName && openedDirectoryName !== null) {
+          itemsInCwd = files;
+      } else if (dirToListPath) {
+          const cwdItem = findItemByPathRecursive(files, dirToListPath);
+          if (cwdItem?.type === 'folder' && cwdItem.children) {
+              itemsInCwd = cwdItem.children;
+          }
+      } else if (openedDirectoryName === null && commandName === 'ls' && argPrefix === "") {
+           setTerminalOutput(prev => [...prev, `No folder open.`, `${getTerminalPromptDisplay()} ${originalInputForPrompt}`]);
+           return originalInputForPrompt;
+      }
+  
+      const matchingItems = itemsInCwd.filter(item => item.name.startsWith(argPrefix));
+  
+      if (matchingItems.length === 1) {
+        const matchedItem = matchingItems[0];
+        const baseInput = currentFullInput.substring(0, currentFullInput.length - argPrefix.length);
+        let completedValue = baseInput + matchedItem.name;
+        completedValue += (matchedItem.type === 'folder' ? '/' : ' ');
+        return completedValue;
+      } else if (matchingItems.length > 0) { 
+        const suggestionNames = matchingItems.map(item => item.name + (item.type === 'folder' ? '/' : ''));
+        setTerminalOutput(prev => [...prev, `\n${suggestionNames.join('  ')}`, `${getTerminalPromptDisplay()} ${originalInputForPrompt}`]);
+        return originalInputForPrompt;
+      }
+    }
+    return originalInputForPrompt; 
+  }, [files, openedDirectoryName, terminalCwdPath, getTerminalPromptDisplay, setTerminalOutput]);
 
 
   const handleGenerateFromComment = async (comment: string, existingCode: string) => {
@@ -1023,6 +1093,7 @@ export default function IdePage() {
               output={terminalOutput}
               onCommandSubmit={handleCommandSubmit}
               currentPromptGetter={getTerminalPromptDisplay}
+              onTabPress={handleTerminalTabPress}
             />
           </TerminalResizableWrapper>
         </div>
