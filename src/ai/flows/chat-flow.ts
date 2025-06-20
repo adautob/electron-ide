@@ -24,7 +24,7 @@ const ProjectFileSchema = z.object({
 const ChatInputSchema = z.object({
   userMessage: z.string().describe('The latest message from the user.'),
   history: z.array(ChatMessageSchema).optional().describe('The conversation history up to this point.'),
-  projectFiles: z.array(ProjectFileSchema).optional().describe('An array of project files (path and content). The content of these files has been made available to you by the IDE.'),
+  projectFiles: z.array(ProjectFileSchema).optional().describe('An array of project files (path and content) to provide context to the AI.'),
 });
 export type ChatInput = z.infer<typeof ChatInputSchema>;
 
@@ -44,48 +44,24 @@ const chatFlow = ai.defineFlow(
     outputSchema: ChatOutputSchema,
   },
   async (input) => {
-    // Tool is defined here, but its implementation is dynamically created
-    // within the flow's scope to access the `input`.
-    // This is still technically defining at runtime, which Genkit prevents.
-    // The correct approach is to define the tool outside and pass context.
-    
-    // Let's redefine the tool statically and handle context properly.
-    const readFileTool = ai.defineTool(
-      {
-        name: 'readFile',
-        description: 'Reads the content of a specific file from the project. Use this tool when you need to see the code or content of a file to answer a question or perform a task. You should only request files that are in the list provided by the IDE.',
-        inputSchema: z.object({
-          filePath: z.string().describe('The full path of the file to read, e.g., /src/app/page.tsx. Must be one of the files provided by the IDE.'),
-        }),
-        outputSchema: z.string().describe('The full content of the requested file, or an error message if the file cannot be read.'),
-      },
-      // The implementation is now a closure that captures the `input` from the flow's execution.
-      // This is the key: we define the tool with a dynamic implementation for each run.
-      async ({ filePath }) => {
-        const file = input.projectFiles?.find(f => f.filePath === filePath);
-        if (file) {
-          return `Content of ${filePath}:\n\n\`\`\`\n${file.fileContent}\n\`\`\``;
-        }
-        return `Error: File not found or access was denied. You can only read files from the provided list. Path requested: '${filePath}'`;
-      }
-    );
-    
     const prompt = `Você é um assistente de IA prestativo integrado a um editor de código.
 Ajude o usuário com suas perguntas de programação, explicações de código ou consultas gerais.
 Mantenha um tom conversacional e útil. Responda sempre em português brasileiro.
 
-Você tem acesso a uma lista de arquivos do projeto do usuário. Se precisar ver o conteúdo de um arquivo para responder à pergunta do usuário, use a ferramenta \`readFile\` fornecida. Não presuma o conteúdo de um arquivo; sempre use a ferramenta para lê-lo.
-
 {{#if projectFiles}}
-O IDE compartilhou a lista dos seguintes arquivos do projeto com você. Use a ferramenta \`readFile\` para ler o conteúdo de qualquer um destes arquivos quando necessário:
+Para contexto, o usuário forneceu os seguintes arquivos do projeto e seu conteúdo:
 {{#each projectFiles}}
-- {{{this.filePath}}}
+---
+Caminho do Arquivo: {{{this.filePath}}}
+Conteúdo:
+\`\`\`
+{{{this.fileContent}}}
+\`\`\`
+---
 {{/each}}
-{{else}}
-Nenhum arquivo de projeto foi compartilhado com você pelo IDE para esta conversa.
 {{/if}}
 
-Se o usuário pedir para modificar um arquivo, primeiro use a ferramenta \`readFile\` para obter seu conteúdo atual. Em seguida, forneça o novo conteúdo completo que o usuário pode usar para substituir o conteúdo do arquivo. Explique que você (o assistente de chat) não interage diretamente com o editor.
+Se o usuário pedir para modificar um arquivo, forneça o novo conteúdo completo que o usuário pode usar para substituir o conteúdo do arquivo.
 
 {{#if history}}
 Histórico da Conversa (mensagens anteriores):
@@ -97,19 +73,17 @@ Histórico da Conversa (mensagens anteriores):
 Usuário (última mensagem): {{{userMessage}}}
 Resposta da IA:`;
     
-    // We use ai.generate directly to avoid defining a prompt at runtime.
     const llmResponse = await ai.generate({
         prompt: prompt,
         history: input.history,
         model: 'googleai/gemini-2.0-flash',
-        tools: [readFileTool],
         context: {
             userMessage: input.userMessage,
             history: input.history,
             projectFiles: input.projectFiles,
         },
         output: {
-            format: 'text', // We expect a simple text response.
+            format: 'text',
         }
     });
 
