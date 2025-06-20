@@ -18,14 +18,16 @@ interface DisplayMessage extends AIChatMessage {
 
 interface AiChatPanelProps {
   projectFiles: FileOrFolder[];
+  onFileOperation: (operation: { filePath: string; content: string }) => void;
 }
 
 interface CodeBlockProps {
   codeContent: string;
   language?: string;
+  filePath?: string;
 }
 
-const CodeBlock: React.FC<CodeBlockProps> = ({ codeContent, language }) => {
+const CodeBlock: React.FC<CodeBlockProps> = ({ codeContent, language, filePath }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -35,14 +37,15 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeContent, language }) => {
       setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
     } catch (err) {
       console.error('Failed to copy code:', err);
-      // Optionally, show a toast error
     }
   };
+  
+  const displayLanguage = filePath ? `${language} - ${filePath}` : language;
 
   return (
     <div className="relative my-2 bg-muted p-3 rounded-md shadow group">
-      {language && (
-        <span className="absolute top-1 left-2 text-xs text-muted-foreground">{language}</span>
+      {displayLanguage && (
+        <span className="absolute top-1 left-2 text-xs text-muted-foreground">{displayLanguage}</span>
       )}
       <Button
         variant="ghost"
@@ -64,7 +67,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeContent, language }) => {
 const MIN_PANEL_WIDTH = 280; // Minimum width for the chat panel
 const DEFAULT_PANEL_WIDTH = 384; // Equivalent to w-96
 
-export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
+export function AiChatPanel({ projectFiles, onFileOperation }: AiChatPanelProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -203,12 +206,27 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
       }
       
       const response = await chatWithAI(chatInput);
+      const aiResponseText = response.aiResponse;
+
+      // Regex to find ```language:path/to/file.ext\n...```
+      const codeBlockRegex = /```(?:[\w.-]*):([^\n]+)\n([\s\S]*?)```/g;
+      let match;
+      
+      while ((match = codeBlockRegex.exec(aiResponseText)) !== null) {
+        const filePath = match[1].trim();
+        const content = match[2].trim();
+        if (filePath && content) {
+          onFileOperation({ filePath, content });
+        }
+      }
+
       const aiMessage: DisplayMessage = {
         id: Date.now().toString() + '-model',
         role: 'model',
-        content: response.aiResponse,
+        content: aiResponseText,
       };
       setMessages((prevMessages) => [...prevMessages, aiMessage]);
+
     } catch (error) {
       console.error('Error chatting with AI:', error);
       toast({
@@ -225,7 +243,8 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
   const renderMessageContent = (content: string) => {
     const parts = [];
     let lastIndex = 0;
-    const codeBlockRegex = /```(?:([\w.-]+)\n)?([\s\S]*?)```/g; // Captures optional language and content
+    // Regex to find ```language:path/to/file.ext\n...``` OR ```language\n...```
+    const codeBlockRegex = /```(?:([\w.-]*):([^\n]+))?\n([\s\S]*?)```/g;
     let match;
   
     while ((match = codeBlockRegex.exec(content)) !== null) {
@@ -238,10 +257,11 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
         );
       }
       // The code block
-      const language = match[1]; // Optional language (e.g., html, javascript)
-      const code = match[2].trim(); // Trim to remove leading/trailing newlines within the block
+      const language = match[1]?.trim();
+      const filePath = match[2]?.trim();
+      const code = match[3].trim();
       parts.push(
-        <CodeBlock key={`code-${match.index}`} codeContent={code} language={language} />
+        <CodeBlock key={`code-${match.index}`} codeContent={code} language={language} filePath={filePath} />
       );
       lastIndex = codeBlockRegex.lastIndex;
     }

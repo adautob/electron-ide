@@ -1074,6 +1074,84 @@ export default function IdePage() {
     }
   };
 
+  const handleFileOperationFromAI = useCallback(async (operation: { filePath: string; content: string }) => {
+    if (!rootDirectoryHandle || !openedDirectoryName) {
+      toast({ variant: "destructive", title: "AI Error", description: "No folder open to perform file operations." });
+      return;
+    }
+  
+    const { filePath, content } = operation;
+    const item = findItemByPathRecursive(files, filePath);
+  
+    if (item) { // File exists, modify it
+      if (item.type === 'folder') {
+        toast({ variant: "destructive", title: "AI Error", description: `Cannot write to '${filePath}' as it is a folder.` });
+        return;
+      }
+  
+      const handle = item.handle as FileSystemFileHandle;
+      if (!handle) {
+        toast({ variant: "destructive", title: "AI Error", description: `File '${filePath}' cannot be modified.` });
+        return;
+      }
+  
+      try {
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+  
+        // Update state
+        setFiles(prevFiles => {
+          const updateContentRecursive = (items: FileOrFolder[]): FileOrFolder[] =>
+            items.map(i => {
+              if (i.id === item.id) return { ...i, content: content };
+              if (i.children) return { ...i, children: updateContentRecursive(i.children) };
+              return i;
+            });
+          return updateContentRecursive(prevFiles);
+        });
+  
+        if (activeFile?.path === filePath) {
+          setEditorContent(content);
+        }
+        toast({ title: "AI: Arquivo Modificado", description: `O arquivo '${item.name}' foi modificado.` });
+      } catch (e) {
+        console.error("AI error writing to existing file:", e);
+        toast({ variant: "destructive", title: "AI Error", description: `Failed to write to file '${filePath}'.` });
+      }
+    } else { // File does not exist, create it
+      const parentPath = getParentPath(filePath);
+      const fileName = filePath.substring(filePath.lastIndexOf('/') + 1);
+  
+      if (!fileName) {
+        toast({ variant: "destructive", title: "AI Error", description: `Invalid file path for creation: '${filePath}'.` });
+        return;
+      }
+  
+      const parentDirHandle = parentPath ? await getDirectoryHandleByPath(parentPath, rootDirectoryHandle) : rootDirectoryHandle;
+  
+      if (!parentDirHandle) {
+        toast({ variant: "destructive", title: "AI Error", description: `Parent directory for '${filePath}' not found.` });
+        return;
+      }
+  
+      try {
+        const newFileHandle = await parentDirHandle.getFileHandle(fileName, { create: true });
+        const writable = await newFileHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+  
+        toast({ title: "AI: Arquivo Criado", description: `O arquivo '${fileName}' foi criado.` });
+  
+        const pathToRefresh = parentPath === null ? openedDirectoryName : parentPath;
+        await refreshDirectoryInState(pathToRefresh, parentDirHandle);
+      } catch (e) {
+        console.error("AI error creating new file:", e);
+        toast({ variant: "destructive", title: "AI Error", description: `Failed to create and write to file '${filePath}'.` });
+      }
+    }
+  }, [files, rootDirectoryHandle, openedDirectoryName, getDirectoryHandleByPath, activeFile, toast, refreshDirectoryInState]);
+
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
@@ -1114,10 +1192,9 @@ export default function IdePage() {
             />
           </TerminalResizableWrapper>
         </div>
-        <AiChatPanel projectFiles={files} />
+        <AiChatPanel projectFiles={files} onFileOperation={handleFileOperationFromAI} />
       </main>
       <PreferencesDialog isOpen={isPreferencesOpen} onOpenChange={setIsPreferencesOpen} />
     </div>
   );
 }
-

@@ -47,7 +47,20 @@ const chatPrompt = ai.definePrompt({
 1.  **Use o Contexto:** Responda às perguntas com base no contexto fornecido, que inclui o histórico da conversa e o conteúdo dos arquivos do projeto. Se o usuário fizer uma pergunta geral como "o que temos no projeto?" ou "leia os arquivos", você deve resumir a estrutura e o propósito dos arquivos fornecidos.
 2.  **Seja Proativo:** Se o conteúdo de um arquivo for relevante para a pergunta do usuário, mencione-o e use-o em sua resposta.
 3.  **Responda em Português:** Todas as suas respostas devem ser em português brasileiro.
-4.  **Modificação de Arquivos:** Se o usuário pedir para modificar um arquivo, forneça o novo conteúdo completo que o usuário pode usar para substituir o conteúdo do arquivo.
+4.  **Modificação de Arquivos:** Se o usuário pedir para modificar ou criar um arquivo, você DEVE responder com um bloco de código markdown que contém o caminho completo do arquivo e o novo conteúdo. O caminho do arquivo deve ser anexado à linguagem do bloco de código, separado por dois pontos.
+
+Exemplo para criar um novo arquivo TSX:
+\`\`\`tsx:src/components/NovoComponente.tsx
+export function NovoComponente() {
+  return <div>Olá, Mundo!</div>;
+}
+\`\`\`
+
+Exemplo para modificar um arquivo de texto existente:
+\`\`\`text:README.md
+Este é o novo conteúdo do README.
+\`\`\`
+Responda APENAS com o bloco de código se a intenção for modificar o arquivo. Você pode adicionar um breve texto de confirmação antes do bloco, se necessário.
 
 {{#if projectFiles}}
 ---
