@@ -37,26 +37,52 @@ export async function chatWithAI(input: ChatInput): Promise<ChatOutput> {
   return chatFlow(input);
 }
 
-const chatPrompt = ai.definePrompt({
-  name: 'chatPrompt',
-  input: {schema: ChatInputSchema},
-  output: {schema: ChatOutputSchema},
-  prompt: `Você é um assistente de IA prestativo integrado a um editor de código.
+const chatFlow = ai.defineFlow(
+  {
+    name: 'chatFlow',
+    inputSchema: ChatInputSchema,
+    outputSchema: ChatOutputSchema,
+  },
+  async (input) => {
+    const readFileTool = ai.defineTool(
+      {
+        name: 'readFile',
+        description: 'Reads the content of a specific file from the project. Use this tool when you need to see the code or content of a file to answer a question or perform a task. You should only request files that are in the list provided by the IDE.',
+        inputSchema: z.object({
+          filePath: z.string().describe('The full path of the file to read, e.g., /src/app/page.tsx. Must be one of the files provided by the IDE.'),
+        }),
+        outputSchema: z.string().describe('The full content of the requested file, or an error message if the file cannot be read.'),
+      },
+      async ({ filePath }) => {
+        const file = input.projectFiles?.find(f => f.filePath === filePath);
+        if (file) {
+          return `Content of ${filePath}:\n\n\`\`\`\n${file.fileContent}\n\`\`\``;
+        }
+        return `Error: File not found or access was denied. You can only read files from the provided list. Path requested: '${filePath}'`;
+      }
+    );
+    
+    const chatPrompt = ai.definePrompt({
+      name: 'chatPrompt',
+      input: {schema: ChatInputSchema},
+      output: {schema: ChatOutputSchema},
+      tools: [readFileTool],
+      prompt: `Você é um assistente de IA prestativo integrado a um editor de código.
 Ajude o usuário com suas perguntas de programação, explicações de código ou consultas gerais.
 Mantenha um tom conversacional e útil. Responda sempre em português brasileiro.
 
-Seu conhecimento dos arquivos do projeto do usuário é estritamente limitado ao conteúdo dos arquivos explicitamente fornecidos a você nesta conversa (campo 'projectFiles'). Você não pode navegar no sistema de arquivos do usuário ou acessar arquivos não listados.
+Você tem acesso a uma lista de arquivos do projeto do usuário. Se precisar ver o conteúdo de um arquivo para responder à pergunta do usuário, use a ferramenta \`readFile\` fornecida. Não presuma o conteúdo de um arquivo; sempre use a ferramenta para lê-lo.
 
 {{#if projectFiles}}
-O IDE compartilhou o conteúdo dos seguintes arquivos do projeto com você para esta conversa (esta é a lista completa de arquivos aos quais você tem acesso, incluindo arquivos na pasta raiz e em subpastas):
+O IDE compartilhou a lista dos seguintes arquivos do projeto com você. Use a ferramenta \`readFile\` para ler o conteúdo de qualquer um destes arquivos quando necessário:
 {{#each projectFiles}}
 - {{{this.filePath}}}
 {{/each}}
-Use o conteúdo desses arquivos específicos como sua principal fonte de informação. Ao ser questionado sobre arquivos que você pode "ler" ou sobre a estrutura de arquivos que você "vê", refira-se a esta lista completa.
-Se o usuário pedir para modificar um arquivo que foi compartilhado com você, ou para escrever/colocar código diretamente no editor (o que geralmente implica modificar o arquivo atualmente ativo no editor), explique que você (o assistente de chat) não interage diretamente com o editor ou com o sistema de arquivos dele. No entanto, você PODE e DEVE fornecer o novo conteúdo completo que o usuário pode então usar para substituir o conteúdo do arquivo ou colar no editor. Por exemplo, se pedirem para "limpar o arquivo X e colocar o código Y" ou "escreva 'console.log(1)' no editor", você deve responder "Entendido! Embora eu, como assistente de chat, não possa alterar o arquivo/editor diretamente no seu computador, aqui está o novo conteúdo que você pode usar:" seguido pelo conteúdo completo e claramente delimitado (por exemplo, dentro de um bloco de código). Você pode mencionar que o IDE possui outras ferramentas de IA, como botões no editor, que podem ter a capacidade de inserir código diretamente, caso essa seja a intenção do usuário.
 {{else}}
-Nenhum conteúdo de arquivo específico foi compartilhado com você pelo IDE para esta conversa. Você só pode analisar o conteúdo do arquivo se ele for fornecido a você na mensagem do usuário ou em interações futuras. Se o usuário pedir para modificar um arquivo ou escrever no editor, explique que você precisa do conteúdo atual do arquivo (se for uma modificação) ou de uma descrição clara do que deve ser gerado, e então você pode fornecer o novo conteúdo.
+Nenhum arquivo de projeto foi compartilhado com você pelo IDE para esta conversa.
 {{/if}}
+
+Se o usuário pedir para modificar um arquivo, primeiro use a ferramenta \`readFile\` para obter seu conteúdo atual. Em seguida, forneça o novo conteúdo completo que o usuário pode usar para substituir o conteúdo do arquivo. Explique que você (o assistente de chat) não interage diretamente com o editor.
 
 {{#if history}}
 Histórico da Conversa (mensagens anteriores):
@@ -65,33 +91,11 @@ Histórico da Conversa (mensagens anteriores):
 {{/each}}
 {{/if}}
 
-{{#if projectFiles}}
-
-Para sua referência, aqui está o conteúdo detalhado dos arquivos de projeto compartilhados mencionados acima:
-{{#each projectFiles}}
----
-Caminho do Arquivo: {{{this.filePath}}}
-Conteúdo:
-\`\`\`
-{{{this.fileContent}}}
-\`\`\`
----
-{{/each}}
-{{/if}}
-
 Usuário (última mensagem): {{{userMessage}}}
 Resposta da IA:`,
-});
+    });
 
-const chatFlow = ai.defineFlow(
-  {
-    name: 'chatFlow',
-    inputSchema: ChatInputSchema,
-    outputSchema: ChatOutputSchema,
-  },
-  async (input) => {
     const {output} = await chatPrompt(input);
     return output!;
   }
 );
-
