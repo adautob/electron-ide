@@ -18,9 +18,8 @@ async function createWindow() {
     icon: path.join(__dirname, 'public/favicon.ico') // Tentativa de adicionar um ícone
   });
 
-  const startUrl = isDev
-    ? 'http://localhost:9002' // Garanta que esta porta corresponde ao seu servidor Next.js
-    : `file://${path.join(__dirname, './out/index.html')}`; // Carrega de 'out/index.html' em produção
+  // Electron will always load from the Next.js server (dev or prod) on port 9002
+  const startUrl = 'http://localhost:9002';
 
   win.loadURL(startUrl);
 

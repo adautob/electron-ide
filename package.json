@@ -8,12 +8,11 @@
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
-    "export": "next export",
-    "start": "next start",
+    "start": "next start -p 9002",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "electron:dev": "electron .",
-    "start:prod": "npm run build && npm run export && cross-env NODE_ENV=production electron ."
+    "start:prod": "npm run build && cross-env NODE_ENV=production electron ."
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.8.0",

@@ -2,7 +2,7 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  output: 'export', // Required for next export
+  // output: 'export', // Removed: Not compatible with Server Actions used by Genkit
   typescript: {
     ignoreBuildErrors: true,
   },
