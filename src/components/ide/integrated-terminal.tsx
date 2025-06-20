@@ -62,7 +62,7 @@ export function IntegratedTerminal({ output, onCommandSubmit, currentPromptGette
   const displayPrompt = currentPromptGetter ? currentPromptGetter() : '$';
 
   return (
-    <div className="h-full flex flex-col bg-card text-sm font-code">
+    <div className="h-full flex flex-col bg-black text-gray-200 text-sm font-code">
       <ScrollArea className="flex-1 p-3" ref={scrollAreaRef}>
         {output.map((line, index) => (
           <div key={index} className="whitespace-pre-wrap break-all">
@@ -80,7 +80,7 @@ export function IntegratedTerminal({ output, onCommandSubmit, currentPromptGette
           onChange={(e) => setCommand(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Digite seu comando aqui..."
-          className="flex-1 bg-transparent border-0 h-8 p-0 focus-visible:ring-0 text-sm"
+          className="flex-1 bg-transparent border-0 h-8 p-0 focus-visible:ring-0 text-sm text-gray-200 placeholder-gray-500"
           spellCheck="false"
           autoFocus
         />
