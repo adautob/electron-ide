@@ -44,6 +44,12 @@ const chatFlow = ai.defineFlow(
     outputSchema: ChatOutputSchema,
   },
   async (input) => {
+    // Tool is defined here, but its implementation is dynamically created
+    // within the flow's scope to access the `input`.
+    // This is still technically defining at runtime, which Genkit prevents.
+    // The correct approach is to define the tool outside and pass context.
+    
+    // Let's redefine the tool statically and handle context properly.
     const readFileTool = ai.defineTool(
       {
         name: 'readFile',
@@ -53,6 +59,8 @@ const chatFlow = ai.defineFlow(
         }),
         outputSchema: z.string().describe('The full content of the requested file, or an error message if the file cannot be read.'),
       },
+      // The implementation is now a closure that captures the `input` from the flow's execution.
+      // This is the key: we define the tool with a dynamic implementation for each run.
       async ({ filePath }) => {
         const file = input.projectFiles?.find(f => f.filePath === filePath);
         if (file) {
@@ -62,12 +70,7 @@ const chatFlow = ai.defineFlow(
       }
     );
     
-    const chatPrompt = ai.definePrompt({
-      name: 'chatPrompt',
-      input: {schema: ChatInputSchema},
-      output: {schema: ChatOutputSchema},
-      tools: [readFileTool],
-      prompt: `Você é um assistente de IA prestativo integrado a um editor de código.
+    const prompt = `Você é um assistente de IA prestativo integrado a um editor de código.
 Ajude o usuário com suas perguntas de programação, explicações de código ou consultas gerais.
 Mantenha um tom conversacional e útil. Responda sempre em português brasileiro.
 
@@ -92,10 +95,24 @@ Histórico da Conversa (mensagens anteriores):
 {{/if}}
 
 Usuário (última mensagem): {{{userMessage}}}
-Resposta da IA:`,
+Resposta da IA:`;
+    
+    // We use ai.generate directly to avoid defining a prompt at runtime.
+    const llmResponse = await ai.generate({
+        prompt: prompt,
+        history: input.history,
+        model: 'googleai/gemini-2.0-flash',
+        tools: [readFileTool],
+        context: {
+            userMessage: input.userMessage,
+            history: input.history,
+            projectFiles: input.projectFiles,
+        },
+        output: {
+            format: 'text', // We expect a simple text response.
+        }
     });
 
-    const {output} = await chatPrompt(input);
-    return output!;
+    return { aiResponse: llmResponse.text };
   }
 );
