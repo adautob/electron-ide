@@ -20,7 +20,7 @@ async function createWindow() {
 
   const startUrl = isDev
     ? 'http://localhost:9002' // Garanta que esta porta corresponde ao seu servidor Next.js
-    : `file://${path.join(__dirname, './out/index.html')}`; // Placeholder para produção (requer 'next export')
+    : `file://${path.join(__dirname, './out/index.html')}`; // Carrega de 'out/index.html' em produção
 
   win.loadURL(startUrl);
 
