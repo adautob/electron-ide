@@ -37,6 +37,45 @@ export async function chatWithAI(input: ChatInput): Promise<ChatOutput> {
   return chatFlow(input);
 }
 
+const chatPrompt = ai.definePrompt({
+  name: 'ideChatPrompt',
+  model: 'googleai/gemini-2.0-flash',
+  input: { schema: ChatInputSchema },
+  prompt: `Você é um assistente de IA prestativo e especialista em programação, integrado a um editor de código. Sua principal função é ajudar o usuário a entender, modificar e escrever código.
+
+**Instruções Importantes:**
+1.  **Use o Contexto:** Responda às perguntas com base no contexto fornecido, que inclui o histórico da conversa e o conteúdo dos arquivos do projeto. Se o usuário fizer uma pergunta geral como "o que temos no projeto?" ou "leia os arquivos", você deve resumir a estrutura e o propósito dos arquivos fornecidos.
+2.  **Seja Proativo:** Se o conteúdo de um arquivo for relevante para a pergunta do usuário, mencione-o e use-o em sua resposta.
+3.  **Responda em Português:** Todas as suas respostas devem ser em português brasileiro.
+4.  **Modificação de Arquivos:** Se o usuário pedir para modificar um arquivo, forneça o novo conteúdo completo que o usuário pode usar para substituir o conteúdo do arquivo.
+
+{{#if projectFiles}}
+---
+**CONTEXTO DO PROJETO (Arquivos Fornecidos)**
+{{#each projectFiles}}
+Caminho do Arquivo: {{{this.filePath}}}
+Conteúdo:
+\`\`\`
+{{{this.fileContent}}}
+\`\`\`
+{{/each}}
+---
+{{/if}}
+
+{{#if history}}
+**HISTÓRICO DA CONVERSA**
+{{#each history}}
+{{this.role}}: {{{this.content}}}
+{{/each}}
+---
+{{/if}}
+
+**NOVA MENSAGEM**
+Usuário: {{{userMessage}}}
+Resposta da IA:`,
+});
+
+
 const chatFlow = ai.defineFlow(
   {
     name: 'chatFlow',
@@ -44,49 +83,10 @@ const chatFlow = ai.defineFlow(
     outputSchema: ChatOutputSchema,
   },
   async (input) => {
-    const prompt = `Você é um assistente de IA prestativo integrado a um editor de código.
-Ajude o usuário com suas perguntas de programação, explicações de código ou consultas gerais.
-Mantenha um tom conversacional e útil. Responda sempre em português brasileiro.
-
-{{#if projectFiles}}
-Para contexto, o usuário forneceu os seguintes arquivos do projeto e seu conteúdo:
-{{#each projectFiles}}
----
-Caminho do Arquivo: {{{this.filePath}}}
-Conteúdo:
-\`\`\`
-{{{this.fileContent}}}
-\`\`\`
----
-{{/each}}
-{{/if}}
-
-Se o usuário pedir para modificar um arquivo, forneça o novo conteúdo completo que o usuário pode usar para substituir o conteúdo do arquivo.
-
-{{#if history}}
-Histórico da Conversa (mensagens anteriores):
-{{#each history}}
-{{this.role}}: {{{this.content}}}
-{{/each}}
-{{/if}}
-
-Usuário (última mensagem): {{{userMessage}}}
-Resposta da IA:`;
-    
-    const llmResponse = await ai.generate({
-        prompt: prompt,
-        history: input.history,
-        model: 'googleai/gemini-2.0-flash',
-        context: {
-            userMessage: input.userMessage,
-            history: input.history,
-            projectFiles: input.projectFiles,
-        },
-        output: {
-            format: 'text',
-        }
+    const llmResponse = await chatPrompt(input, {
+      history: input.history,
     });
-
+    
     return { aiResponse: llmResponse.text };
   }
 );
