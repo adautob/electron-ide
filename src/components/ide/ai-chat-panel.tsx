@@ -261,7 +261,7 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
   return (
     <Card
       style={{ width: `${panelWidth}px` }}
-      className="flex flex-col h-full border-l border-border rounded-none shrink-0 relative bg-background text-foreground"
+      className="flex flex-col h-full border-l border-yellow-500 rounded-none shrink-0 relative bg-background text-foreground"
     >
       <div
         ref={dragHandleRef}
@@ -269,9 +269,9 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
         className="absolute top-0 left-0 h-full w-3 transform -translate-x-1/2 cursor-col-resize flex items-center justify-center z-20 group"
         title="Redimensionar painel"
       >
-        <div className="h-10 w-1 bg-border rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-150"></div>
+        <div className="h-10 w-1 bg-yellow-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-150"></div>
       </div>
-      <CardHeader className="p-3 border-b border-border">
+      <CardHeader className="p-3 border-b border-yellow-500">
         <CardTitle className="text-base font-semibold font-headline">AI Chat</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 p-0 overflow-hidden">
@@ -307,7 +307,7 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
           </div>
         </ScrollArea>
       </CardContent>
-      <CardFooter className="p-3 border-t border-border">
+      <CardFooter className="p-3 border-t border-yellow-500">
         <form onSubmit={handleSendMessage} className="flex w-full items-center space-x-2">
           <Input
             ref={inputRef}
@@ -328,4 +328,3 @@ export function AiChatPanel({ projectFiles }: AiChatPanelProps) {
     </Card>
   );
 }
-

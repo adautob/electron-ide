@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Textarea } from '@/components/ui/textarea';
@@ -37,7 +38,7 @@ export function CodeEditor({
 
   return (
     <div className="flex flex-col flex-1 h-full bg-card">
-      <div className="p-2 border-b border-border flex justify-between items-center shrink-0">
+      <div className="p-2 border-b border-yellow-500 flex justify-between items-center shrink-0">
         <span className="text-sm font-medium">{fileName || "Untitled"}</span>
         <div className="flex space-x-2">
           <Button variant="ghost" size="sm" onClick={handleGenerate} title="Generate code from comment/selection">
