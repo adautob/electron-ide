@@ -19,6 +19,7 @@ interface DisplayMessage extends AIChatMessage {
 interface AiChatPanelProps {
   projectFiles: FileOrFolder[];
   onFileOperation: (operation: { filePath: string; content: string }) => void;
+  selectedFilePath: string | null;
 }
 
 interface CodeBlockProps {
@@ -67,7 +68,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeContent, language, filePath }
 const MIN_PANEL_WIDTH = 280; // Minimum width for the chat panel
 const DEFAULT_PANEL_WIDTH = 384; // Equivalent to w-96
 
-export function AiChatPanel({ projectFiles, onFileOperation }: AiChatPanelProps) {
+export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }: AiChatPanelProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -200,6 +201,7 @@ export function AiChatPanel({ projectFiles, onFileOperation }: AiChatPanelProps)
       const chatInput: ChatInput = {
          userMessage: trimmedInput, 
          history: historyForAI,
+         selectedPath: selectedFilePath ?? undefined,
       };
       if (currentProjectFilesForAI) {
         chatInput.projectFiles = currentProjectFilesForAI;

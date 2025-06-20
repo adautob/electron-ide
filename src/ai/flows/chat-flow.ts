@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow for handling chat conversations with an AI.
@@ -25,6 +26,7 @@ const ChatInputSchema = z.object({
   userMessage: z.string().describe('The latest message from the user.'),
   history: z.array(ChatMessageSchema).optional().describe('The conversation history up to this point.'),
   projectFiles: z.array(ProjectFileSchema).optional().describe('An array of project files (path and content) to provide context to the AI.'),
+  selectedPath: z.string().optional().describe('The path to the currently selected file or folder in the file explorer. This can be used as context for where to create new files.'),
 });
 export type ChatInput = z.infer<typeof ChatInputSchema>;
 
@@ -47,7 +49,9 @@ const chatPrompt = ai.definePrompt({
 1.  **Use o Contexto, mas seja flexível:** Sua principal fonte de informação são os arquivos do projeto e o histórico da conversa. Use-os sempre que forem relevantes. No entanto, se o usuário fizer uma pergunta geral sobre programação (por exemplo, "como escrever uma função em C" ou "o que é uma Promise em JavaScript"), você deve respondê-la, mesmo que não tenha relação com os arquivos do projeto.
 2.  **Seja Proativo com o Contexto:** Se um arquivo for relevante para a pergunta do usuário, mencione-o e use seu conteúdo na resposta. Se a pergunta for sobre o projeto em geral ("o que temos no projeto?"), resuma a estrutura e o propósito dos arquivos fornecidos.
 3.  **Responda em Português:** Todas as suas respostas devem ser em português brasileiro.
-4.  **Modificação de Arquivos:** Se o usuário pedir para modificar ou criar um arquivo, você DEVE responder com um bloco de código markdown que contém o caminho completo do arquivo e o novo conteúdo. O caminho do arquivo deve ser anexado à linguagem do bloco de código, separado por dois pontos.
+4.  **Modificação e Criação de Arquivos:** Se o usuário pedir para modificar ou criar um arquivo, você DEVE responder com um bloco de código markdown que contém o caminho completo do arquivo e o novo conteúdo. O caminho do arquivo deve ser anexado à linguagem do bloco de código, separado por dois pontos.
+    -   **Para criar arquivos:** Se o usuário especificar uma pasta, crie nela. Se o usuário tiver uma pasta selecionada no explorador, prefira criar o novo arquivo dentro dela. Se não houver contexto, crie o arquivo na raiz do projeto. O caminho que você fornecer será criado se não existir.
+    -   **Caminho do arquivo:** Forneça o caminho relativo à raiz do projeto. Por exemplo, \`src/components/Novo.tsx\` ou \`README.md\`.
 
 Exemplo para criar um novo arquivo TSX:
 \`\`\`tsx:src/components/NovoComponente.tsx
@@ -61,6 +65,13 @@ Exemplo para modificar um arquivo de texto existente:
 Este é o novo conteúdo do README.
 \`\`\`
 Responda APENAS com o bloco de código se a intenção for modificar o arquivo. Você pode adicionar um breve texto de confirmação antes do bloco, se necessário.
+
+{{#if selectedPath}}
+---
+**CONTEXTO ATUAL DO USUÁRIO:**
+O usuário tem o seguinte arquivo/pasta selecionado no momento: \`{{selectedPath}}\`. Use isso como uma dica de onde criar novos arquivos se o usuário não especificar um local.
+---
+{{/if}}
 
 {{#if projectFiles}}
 ---
