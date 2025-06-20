@@ -98,7 +98,7 @@ export function CodeEditor({
   const currentLanguage = getLanguage(fileName);
 
   return (
-    <div className="flex flex-col flex-1 h-full bg-card">
+    <div className="flex flex-col flex-1 bg-card overflow-hidden">
       <div className="p-2 border-b border-yellow-500 flex justify-between items-center shrink-0">
         <span className="text-sm font-medium">{fileName || "Untitled"} ({currentLanguage})</span>
         <div className="flex space-x-2">
@@ -112,9 +112,8 @@ export function CodeEditor({
           </Button>
         </div>
       </div>
-      <div className="flex-1 w-full h-full relative code-editor-instance">
+      <div className="flex-1 relative w-full code-editor-instance" ref={editorContainerRef}>
         <Editor
-          ref={editorContainerRef}
           value={content}
           onValueChange={onContentChange}
           highlight={(code) => highlightCode(code, currentLanguage)}
@@ -123,10 +122,8 @@ export function CodeEditor({
             fontFamily: "'Source Code Pro', monospace",
             fontSize: 14,
             outline: 'none',
-            minHeight: '100%', // Ensure editor takes full height of its container
+            minHeight: '100%', 
           }}
-          // ClassNames for internal elements of react-simple-code-editor
-          // These are styled in globals.css to overlay textarea on pre correctly
           textareaClassName="editor-textarea" 
           preClassName="editor-pre"
           spellCheck="false"
@@ -136,3 +133,4 @@ export function CodeEditor({
     </div>
   );
 }
+
