@@ -120,6 +120,23 @@ export default function IdePage() {
         return;
       }
       const directoryHandle = await window.showDirectoryPicker();
+      
+      // Request read-write permissions upfront to allow AI to modify files later
+      const options = { mode: 'readwrite' } as const;
+      const permissionStatus = await directoryHandle.queryPermission(options);
+
+      if (permissionStatus !== 'granted') {
+        const requestedPermissionStatus = await directoryHandle.requestPermission(options);
+        if (requestedPermissionStatus !== 'granted') {
+           toast({
+             variant: "destructive",
+             title: "Permissão Negada",
+             description: "A IA não poderá modificar ou criar arquivos. As funcionalidades de escrita estão desativadas.",
+           });
+          // We can still proceed with read-only access, so no 'return' here.
+        }
+      }
+
       setRootDirectoryHandle(directoryHandle);
       const processedFiles = await processDirectory(directoryHandle, directoryHandle.name);
       setFiles(processedFiles);
