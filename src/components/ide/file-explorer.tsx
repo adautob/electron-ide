@@ -95,7 +95,7 @@ export function FileExplorer({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-2 border-b border-sidebar-border">
+      <div className="p-2 border-b border-yellow-500">
         <div className="flex items-center justify-between px-2 py-1">
           <h2 className="text-sm font-semibold font-headline">
             {explorerTitle}
@@ -135,3 +135,4 @@ export function FileExplorer({
     </div>
   );
 }
+
