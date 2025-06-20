@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import PrismJS theme for syntax highlighting */
+@import 'prismjs/themes/prism-okaidia.css';
+
+
 @layer base {
   /* Default to dark theme */
   :root, html[data-theme="dark"] {
@@ -89,3 +93,71 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Styles for react-simple-code-editor with PrismJS */
+/* Ensure the editor fits within its container and basic styles */
+.code-editor-instance {
+  overflow: auto; /* Allow scrolling for long lines/content */
+}
+
+/* The <pre> tag styled by PrismJS (okaidia theme) */
+.code-editor-instance pre[class*="language-"] {
+  margin: 0 !important; /* Override Prism's default margin */
+  padding: 1rem !important; /* Consistent padding, matches Editor component's padding prop */
+  background-color: hsl(var(--card)) !important; /* Use card background for consistency, or okaidia's default */
+  min-height: 100%;
+  box-sizing: border-box;
+  border-radius: inherit; /* Inherit border radius from parent if any */
+}
+
+/* The textarea used by react-simple-code-editor */
+.code-editor-instance textarea {
+  font-family: 'Source Code Pro', monospace !important;
+  font-size: 14px !important; /* Match the pre tag */
+  line-height: 1.5 !important; /* Match typical pre line-height */
+  background-color: transparent !important;
+  color: transparent !important; /* Text is typed here but rendered by the pre */
+  caret-color: hsl(var(--foreground)) !important; /* Visible caret */
+  border: none !important;
+  outline: none !important;
+  resize: none !important;
+  overflow: hidden !important; /* Hide textarea's own scrollbars */
+  white-space: pre-wrap !important; /* Ensure wrapping matches pre */
+  word-wrap: break-word !important; /* Ensure wrapping matches pre */
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 1rem !important; /* Must match pre's padding */
+  box-sizing: border-box !important;
+  z-index: 1 !important;
+}
+
+/* Ensure Prism's default font matches */
+.token.operator, .token.entity, .token.url, .language-css .token.string, .style .token.string {
+    background: none; /* okaidia might add backgrounds to some tokens, remove if not desired */
+}
+html[data-theme="dark"] .code-editor-instance pre[class*="language-"] {
+  background-color: #272822 !important; /* Okaidia default background */
+  color: #f8f8f2 !important; /* Okaidia default text color */
+}
+html[data-theme="dark"] .code-editor-instance textarea {
+  caret-color: #f8f8f2 !important; /* White caret on dark background */
+}
+
+html[data-theme="light"] .code-editor-instance pre[class*="language-"] {
+  background-color: #f5f2f0 !important; /* Example light theme background for code */
+  color: #393A34 !important; /* Example dark text for light theme */
+}
+html[data-theme="light"] .code-editor-instance textarea {
+  caret-color: #393A34 !important; /* Dark caret on light background */
+}
+/* Adjust Prism Okaidia comment color for better visibility on light theme if needed */
+html[data-theme="light"] .token.comment,
+html[data-theme="light"] .token.prolog,
+html[data-theme="light"] .token.doctype,
+html[data-theme="light"] .token.cdata {
+    color: #708090; /* Slater gray - a common comment color for light themes */
+}
+
