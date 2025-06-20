@@ -44,7 +44,7 @@ Para rodar a aplicação localmente em modo de desenvolvimento com Electron, voc
     ```bash
     npm run dev
     ```
-    A aplicação Next.js estará disponível em `http://localhost:9002` (ou outra porta, se a 9002 estiver ocupada). O Electron irá carregar esta URL.
+    A aplicação Next.js estará disponível em `http://localhost:9002`. O Electron irá carregar esta URL.
 
 2.  **Inicie o Servidor de Desenvolvimento do Genkit (em um novo terminal):**
     Este servidor lida com as funcionalidades de IA.
@@ -62,18 +62,31 @@ Para rodar a aplicação localmente em modo de desenvolvimento com Electron, voc
     ```bash
     npm run electron:dev
     ```
-    Isso abrirá uma janela de desktop contendo sua aplicação IDE.
+    Isso abrirá uma janela de desktop contendo sua aplicação IDE, carregando a partir de `http://localhost:9002`.
 
-Agora você tem o IDE rodando como uma aplicação desktop!
+## Executando Localmente (Modo de Produção Simulado)
+
+Para simular a execução da aplicação Electron carregando os arquivos estáticos (como faria em produção após o empacotamento):
+
+1.  **Construa e Exporte a Aplicação Next.js e Inicie o Electron:**
+    Este comando único irá construir a aplicação Next.js, exportá-la para arquivos estáticos na pasta `out/`, e então iniciar o Electron. O Electron será instruído (via `NODE_ENV=production`) a carregar os arquivos de `out/index.html`.
+    ```bash
+    npm run start:prod
+    ```
+    As DevTools do Electron não abrirão automaticamente neste modo.
+
+    **Nota:** Se você ainda não tiver o servidor Genkit rodando (de `npm run genkit:watch` ou `npm run genkit:dev`), as funcionalidades de IA não estarão disponíveis.
 
 ## Scripts Disponíveis
 
 - `npm run dev`: Inicia o servidor de desenvolvimento do Next.js.
 - `npm run genkit:dev`: Inicia o servidor do Genkit.
 - `npm run genkit:watch`: Inicia o servidor do Genkit com monitoramento de arquivos.
-- `npm run electron:dev`: Inicia a aplicação Electron (requer que `npm run dev` esteja rodando).
-- `npm run build`: Compila a aplicação Next.js para produção (não inclui o empacotamento Electron).
-- `npm run start`: Inicia um servidor de produção do Next.js (após `build`).
+- `npm run build`: Compila a aplicação Next.js para produção.
+- `npm run export`: Exporta a aplicação Next.js para arquivos HTML estáticos (requer `npm run build` primeiro ou que seja parte de um script combinado).
+- `npm run start`: Inicia um servidor de produção do Next.js (após `build`, para servir dinamicamente, não usado pelo Electron em modo de produção simulado).
+- `npm run electron:dev`: Inicia a aplicação Electron em modo de desenvolvimento (requer que `npm run dev` esteja rodando).
+- `npm run start:prod`: Constrói, exporta e inicia a aplicação Electron carregando os arquivos estáticos (simula o modo de produção).
 - `npm run lint`: Executa o ESLint.
 - `npm run typecheck`: Verifica os tipos com TypeScript.
 
@@ -91,7 +104,8 @@ Agora você tem o IDE rodando como uma aplicação desktop!
 - `src/hooks/`: Hooks React customizados.
 - `src/types/`: Definições de tipos TypeScript.
 - `public/`: Arquivos estáticos.
+- `out/`: (Gerado por `npm run export`) Contém os arquivos estáticos da aplicação para produção.
 
-## Empacotamento para Produção (Próximos Passos)
+## Empacotamento para Produção Real (Próximos Passos)
 
-Para distribuir sua aplicação como um executável (.exe, .dmg, .AppImage), você precisará usar uma ferramenta como `electron-builder` ou `electron-forge`. Isso envolve configurar scripts de build adicionais no `package.json` e potencialmente ajustar o `electron-main.js` para carregar arquivos estáticos gerados por `next build && next export`. Esta configuração básica não inclui o empacotamento para produção.
+Para distribuir sua aplicação como um executável real (.exe, .dmg, .AppImage), você precisará usar uma ferramenta como `electron-builder` ou `electron-forge`. Isso envolve configurar scripts de build adicionais no `package.json` e potencialmente ajustar o `electron-main.js` para garantir que ele carregue os arquivos de `out/index.html` corretamente quando o aplicativo estiver empacotado. O script `npm run start:prod` simula o carregamento local desses arquivos estáticos.

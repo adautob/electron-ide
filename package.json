@@ -8,10 +8,12 @@
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
+    "export": "next export",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "electron:dev": "electron ."
+    "electron:dev": "electron .",
+    "start:prod": "npm run build && npm run export && cross-env NODE_ENV=production electron ."
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.8.0",
@@ -62,6 +64,7 @@
     "@types/prismjs": "^1.26.4",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "cross-env": "^7.0.3",
     "electron": "^31.2.1",
     "electron-is-dev": "^3.0.1",
     "genkit-cli": "^1.8.0",
