@@ -42,6 +42,9 @@ const chatPrompt = ai.definePrompt({
   name: 'ideChatPrompt',
   model: 'googleai/gemini-2.0-flash',
   input: { schema: ChatInputSchema },
+  config: {
+    maxOutputTokens: 8192,
+  },
   prompt: `Você é um assistente de IA prestativo e especialista em programação, integrado a um editor de código. Sua principal função é ajudar o usuário a entender, modificar e escrever código.
 
 **Instruções Importantes:**
