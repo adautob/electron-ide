@@ -70,6 +70,7 @@ const chatPrompt = ai.definePrompt({
     
     -   **Para criar arquivos:** Se o usuário especificar uma pasta, crie nela. Se o usuário tiver uma pasta selecionada (veja o contexto \`selectedPath\`), prefira criar o novo arquivo dentro dela. Se não houver contexto, crie na raiz.
     -   **Caminho do arquivo:** Forneça o caminho relativo à raiz do projeto. Por exemplo, \`src/components/Novo.tsx\` ou \`README.md\`.
+5.  **Formatação de Código na Conversa:** Para qualquer trecho de código na sua resposta conversacional (que não seja uma proposta de arquivo), use sempre blocos de código Markdown padrão, iniciados e terminados com três crases (\`\`\`). Por exemplo: \`\`\`python\\nprint('Olá, Mundo!')\\n\`\`\`. Isso se aplica a todas as linguagens, incluindo Python.
 
 {{#if selectedPath}}
 ---
@@ -102,7 +103,7 @@ Conteúdo:
 **NOVA MENSAGEM**
 Usuário: {{{userMessage}}}
 
-**LEMBRETE CRÍTICO:** Se sua resposta envolve a criação ou modificação de um arquivo, você DEVE usar o formato [START_FILE:path]...[END_FILE]. Não instrua o usuário a copiar e colar. Apenas proponha o arquivo.
+**LEMBRETE CRÍTICO:** Se sua resposta envolve a criação ou modificação de um arquivo, você DEVE usar o formato [START_FILE:path]...[END_FILE]. Não instrua o usuário a copiar e colar. Para exemplos de código na conversa, use blocos de código Markdown (\`\`\`).
 
 Resposta da IA:`,
 });
