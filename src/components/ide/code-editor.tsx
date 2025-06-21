@@ -60,17 +60,19 @@ const highlightWithLineNumbers = (code: string, lang: string) => {
   const language = Prism.languages[lang] || Prism.languages.clike;
   try {
     const highlightedCode = Prism.highlight(code, language, lang);
-    // Wrap each line in a div to allow for line numbering via CSS counters
+    // Wrap each line in a div to allow for line numbering via CSS counters.
+    // An empty line needs a zero-width space to take up vertical space,
+    // otherwise the line number for it won't be rendered.
     return highlightedCode
       .split('\n')
-      .map((line) => `<div>${line}</div>`)
+      .map((line) => `<div>${line || '&#8203;'}</div>`)
       .join('');
   } catch (e) {
     console.error("Prism highlighting error:", e);
     // Fallback: return code with line wrappers but no syntax highlighting
     return code
       .split('\n')
-      .map((line) => `<div>${line}</div>`)
+      .map((line) => `<div>${line || '&#8203;'}</div>`)
       .join('');
   }
 };
@@ -142,4 +144,3 @@ export function CodeEditor({
     </div>
   );
 }
-
