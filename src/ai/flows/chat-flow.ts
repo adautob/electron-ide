@@ -135,6 +135,6 @@ const chatFlow = ai.defineFlow(
       history: input.history,
     });
     
-    return { aiResponse: llmResponse.text };
+    return { aiResponse: ll.text };
   }
 );
