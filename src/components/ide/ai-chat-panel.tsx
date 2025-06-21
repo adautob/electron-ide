@@ -315,7 +315,7 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
                       {msg.operations.map((op) => (
                         <li key={op.filePath} className="text-xs flex items-center gap-2 text-muted-foreground">
                           <FileText size={14} className="shrink-0" />
-                          <span className="font-mono truncate" title={op.filePath}>{op.filePath}</span>
+                          <span className="font-mono whitespace-nowrap" title={op.filePath}>{op.filePath}</span>
                         </li>
                       ))}
                     </ul>
