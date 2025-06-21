@@ -176,7 +176,7 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
     return filesForAI.length > 0 ? filesForAI : undefined;
   }, []);
 
-  const codeBlockWithFilepathRegex = /```(?:[\w.-]*):([^\n]+)\n([\s\S]*?)```/g;
+  const fileOperationRegex = /\[START_FILE:([^\]]+)\]\n?([\s\S]*?)\n?\[END_FILE\]/g;
 
   const handleSendMessage = async (e?: React.FormEvent<HTMLFormElement>) => {
     e?.preventDefault();
@@ -204,15 +204,17 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
 
       const operations: FileOperation[] = [];
       let match;
-      while ((match = codeBlockWithFilepathRegex.exec(aiResponseText)) !== null) {
+      while ((match = fileOperationRegex.exec(aiResponseText)) !== null) {
         const filePath = match[1].trim();
-        const content = match[2]; // Removed .trim() to preserve newlines
+        const content = match[2];
         if (filePath && content !== undefined) {
           operations.push({ filePath, content });
         }
       }
-
-      const summaryText = aiResponseText.replace(codeBlockWithFilepathRegex, '').trim();
+      
+      // The summary text is the original response with the custom file blocks removed.
+      // This leaves any standard markdown code blocks (```) for display.
+      const summaryText = aiResponseText.replace(fileOperationRegex, '').trim();
 
       const aiMessage: DisplayMessage = {
         id: Date.now().toString() + '-model',
@@ -270,7 +272,7 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
       if (match.index > lastIndex) {
         parts.push(<span key={`text-${lastIndex}`} className="whitespace-pre-wrap font-sans">{content.substring(lastIndex, match.index)}</span>);
       }
-      const code = match[1]; // Removed .trim() to preserve newlines
+      const code = match[1];
       parts.push(<CodeBlock key={`code-${match.index}`} codeContent={code} />);
       lastIndex = codeBlockRegex.lastIndex;
     }
