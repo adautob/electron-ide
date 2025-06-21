@@ -212,8 +212,6 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
         }
       }
       
-      // The summary text is the original response with the custom file blocks removed.
-      // This leaves any standard markdown code blocks (```) for display.
       const summaryText = aiResponseText.replace(fileOperationRegex, '').trim();
 
       const aiMessage: DisplayMessage = {
@@ -270,7 +268,7 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
   
     while ((match = codeBlockRegex.exec(content)) !== null) {
       if (match.index > lastIndex) {
-        parts.push(<span key={`text-${lastIndex}`} className="whitespace-pre-wrap font-sans">{content.substring(lastIndex, match.index)}</span>);
+        parts.push(<span key={`text-${lastIndex}`} className="whitespace-pre-wrap break-words font-sans">{content.substring(lastIndex, match.index)}</span>);
       }
       const code = match[1];
       parts.push(<CodeBlock key={`code-${match.index}`} codeContent={code} />);
@@ -278,10 +276,10 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
     }
   
     if (lastIndex < content.length) {
-      parts.push(<span key={`text-${lastIndex}`} className="whitespace-pre-wrap font-sans">{content.substring(lastIndex)}</span>);
+      parts.push(<span key={`text-${lastIndex}`} className="whitespace-pre-wrap break-words font-sans">{content.substring(lastIndex)}</span>);
     }
   
-    return parts.length > 0 ? <>{parts}</> : <pre className="whitespace-pre-wrap font-sans">{content}</pre>;
+    return parts.length > 0 ? <>{parts}</> : <pre className="whitespace-pre-wrap break-words font-sans">{content}</pre>;
   };
 
   return (
@@ -314,12 +312,12 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
                     <ul className="space-y-1 mb-3">
                       {msg.operations.map((op, index) => (
                         <li key={index} className="text-xs flex items-center gap-2 text-muted-foreground">
-                          <FileText size={14} />
-                          <span className="font-mono">{op.filePath}</span>
+                          <FileText size={14} className="shrink-0" />
+                          <span className="font-mono truncate" title={op.filePath}>{op.filePath}</span>
                         </li>
                       ))}
                     </ul>
-                    <div className="flex gap-2 justify-end">
+                    <div className="flex flex-wrap gap-2 justify-end">
                       <Button variant="ghost" size="sm" onClick={() => handleCancelChanges(msg.id)}>
                         <XCircle className="mr-1" size={16} />
                         Cancelar
