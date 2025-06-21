@@ -208,7 +208,6 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
       fileOperationRegex.lastIndex = 0;
       while ((match = fileOperationRegex.exec(aiResponseText)) !== null) {
         const filePath = match[1].trim();
-        // Do not trim the content, to preserve newlines at start/end of file
         const content = match[2];
         if (filePath && content !== undefined) {
           operations.push({ filePath, content });
@@ -313,8 +312,8 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
                   <div className="mt-2 p-3 rounded-lg border bg-card w-full max-w-[95%] overflow-x-auto">
                     <h4 className="text-sm font-semibold mb-2">A IA propõe as seguintes alterações:</h4>
                     <ul className="space-y-1 mb-3">
-                      {msg.operations.map((op, index) => (
-                        <li key={index} className="text-xs flex items-center gap-2 text-muted-foreground">
+                      {msg.operations.map((op) => (
+                        <li key={op.filePath} className="text-xs flex items-center gap-2 text-muted-foreground">
                           <FileText size={14} className="shrink-0" />
                           <span className="font-mono truncate" title={op.filePath}>{op.filePath}</span>
                         </li>
