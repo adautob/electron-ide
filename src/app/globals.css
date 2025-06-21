@@ -103,8 +103,8 @@
 /* The <pre> tag styled by PrismJS (okaidia theme) */
 .code-editor-instance pre[class*="language-"] {
   margin: 0 !important; /* Override Prism's default margin */
-  padding: 1rem !important; /* Consistent padding, matches Editor component's padding prop */
-  background-color: hsl(var(--card)) !important; /* Use card background for consistency, or okaidia's default */
+  padding: 1rem !important; /* Consistent padding */
+  background-color: hsl(var(--card)) !important; /* Use card background for consistency */
   min-height: 100%;
   box-sizing: border-box;
   border-radius: inherit; /* Inherit border radius from parent if any */
@@ -136,30 +136,55 @@
 
 /* Ensure Prism's default font matches */
 .token.operator, .token.entity, .token.url, .language-css .token.string, .style .token.string {
-    background: none; /* okaidia might add backgrounds to some tokens, remove if not desired */
+    background: none;
 }
 html[data-theme="dark"] .code-editor-instance pre[class*="language-"] {
-  background-color: #272822 !important; /* Okaidia default background */
-  color: #f8f8f2 !important; /* Okaidia default text color */
+  background-color: #272822 !important;
+  color: #f8f8f2 !important;
 }
 html[data-theme="dark"] .code-editor-instance textarea {
-  caret-color: #f8f8f2 !important; /* White caret on dark background */
+  caret-color: #f8f8f2 !important;
 }
 
 html[data-theme="light"] .code-editor-instance pre[class*="language-"] {
-  background-color: #f5f2f0 !important; /* Example light theme background for code */
-  color: #393A34 !important; /* Example dark text for light theme */
+  background-color: #f5f2f0 !important;
+  color: #393A34 !important;
 }
 html[data-theme="light"] .code-editor-instance textarea {
-  caret-color: #393A34 !important; /* Dark caret on light background */
+  caret-color: #393A34 !important;
 }
-/* Adjust Prism Okaidia comment color for better visibility on light theme if needed */
 html[data-theme="light"] .token.comment,
 html[data-theme="light"] .token.prolog,
 html[data-theme="light"] .token.doctype,
 html[data-theme="light"] .token.cdata {
-    color: #708090; /* Slater gray - a common comment color for light themes */
+    color: #708090;
 }
 
+/* --- NEW STYLES FOR LINE NUMBERS --- */
+.editor-pre.line-numbers {
+  padding-left: 4.5em !important;
+  counter-reset: line;
+}
 
-    
+.editor-pre.line-numbers > div {
+  position: relative;
+  counter-increment: line;
+}
+
+.editor-pre.line-numbers > div::before {
+  content: counter(line);
+  position: absolute;
+  left: -3.5em; /* Position number in the gutter */
+  width: 3em;
+  text-align: right;
+  color: hsl(var(--muted-foreground));
+  opacity: 0.6;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+}
+
+/* Adjust the textarea's padding to align the caret with the code */
+.code-editor-instance .line-numbers-textarea {
+  padding-left: 4.5em !important;
+}

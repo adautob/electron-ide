@@ -56,13 +56,22 @@ const getLanguage = (fileName?: string | null): string => {
   }
 };
 
-const highlightCode = (code: string, lang: string) => {
+const highlightWithLineNumbers = (code: string, lang: string) => {
   const language = Prism.languages[lang] || Prism.languages.clike;
   try {
-    return Prism.highlight(code, language, lang);
+    const highlightedCode = Prism.highlight(code, language, lang);
+    // Wrap each line in a div to allow for line numbering via CSS counters
+    return highlightedCode
+      .split('\n')
+      .map((line) => `<div>${line}</div>`)
+      .join('');
   } catch (e) {
     console.error("Prism highlighting error:", e);
-    return code; // Return original code on error
+    // Fallback: return code with line wrappers but no syntax highlighting
+    return code
+      .split('\n')
+      .map((line) => `<div>${line}</div>`)
+      .join('');
   }
 };
 
@@ -116,7 +125,7 @@ export function CodeEditor({
         <Editor
           value={content}
           onValueChange={onContentChange}
-          highlight={(code) => highlightCode(code, currentLanguage)}
+          highlight={(code) => highlightWithLineNumbers(code, currentLanguage)}
           padding={16} // Corresponds to p-4 or 1rem
           style={{
             fontFamily: "'Source Code Pro', monospace",
@@ -124,8 +133,8 @@ export function CodeEditor({
             outline: 'none',
             minHeight: '100%', 
           }}
-          textareaClassName="editor-textarea" 
-          preClassName="editor-pre"
+          textareaClassName="editor-textarea line-numbers-textarea" 
+          preClassName="editor-pre line-numbers"
           spellCheck="false"
           placeholder="Write your code here..."
         />
