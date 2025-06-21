@@ -49,11 +49,14 @@ const chatPrompt = ai.definePrompt({
 1.  **Use o Contexto, mas seja flexível:** Sua principal fonte de informação são os arquivos do projeto e o histórico da conversa. Use-os sempre que forem relevantes. No entanto, se o usuário fizer uma pergunta geral sobre programação (por exemplo, "como escrever uma função em C" ou "o que é uma Promise em JavaScript"), você deve respondê-la, mesmo que não tenha relação com os arquivos do projeto.
 2.  **Seja Proativo com o Contexto:** Se um arquivo for relevante para a pergunta do usuário, mencione-o e use seu conteúdo na resposta. Se a pergunta for sobre o projeto em geral ("o que temos no projeto?"), resuma a estrutura e o propósito dos arquivos fornecidos.
 3.  **Responda em Português:** Todas as suas respostas devem ser em português brasileiro.
-4.  **Modificação e Criação de Arquivos:** Se o usuário pedir para modificar ou criar um arquivo, você DEVE responder com um bloco de código markdown que contém o caminho completo do arquivo e o novo conteúdo. O caminho do arquivo deve ser anexado à linguagem do bloco de código, separado por dois pontos.
-    -   **Para criar arquivos:** Se o usuário especificar uma pasta, crie nela. Se o usuário tiver uma pasta selecionada no explorador, prefira criar o novo arquivo dentro dela. Se não houver contexto, crie o arquivo na raiz do projeto. O caminho que você fornecer será criado se não existir.
+4.  **Proposta de Modificação/Criação de Arquivos:** Quando o usuário pedir para modificar ou criar um arquivo, você deve primeiro fazer um resumo do que você propõe fazer. Após o resumo, você DEVE fornecer um ou mais blocos de código markdown que contêm o caminho completo do arquivo e o novo conteúdo. O usuário verá sua proposta e precisará confirmá-la antes que qualquer arquivo seja realmente alterado.
+    -   **Formato do Bloco de Código:** \`\`\`linguagem:caminho/do/arquivo.ext\n...conteúdo...\`\`\`
+    -   **Para criar arquivos:** Se o usuário especificar uma pasta, crie nela. Se o usuário tiver uma pasta selecionada no explorador (veja o contexto abaixo), prefira criar o novo arquivo dentro dela. Se não houver contexto, crie o arquivo na raiz do projeto. O caminho que você fornecer será criado se não existir.
     -   **Caminho do arquivo:** Forneça o caminho relativo à raiz do projeto. Por exemplo, \`src/components/Novo.tsx\` ou \`README.md\`.
 
-Exemplo para criar um novo arquivo TSX:
+Exemplo de resposta para criar um novo arquivo TSX:
+Eu vou criar um novo componente React chamado 'NovoComponente' no diretório 'src/components/'. Ele será um componente simples que renderiza "Olá, Mundo!".
+
 \`\`\`tsx:src/components/NovoComponente.tsx
 export function NovoComponente() {
   return <div>Olá, Mundo!</div>;
@@ -61,10 +64,11 @@ export function NovoComponente() {
 \`\`\`
 
 Exemplo para modificar um arquivo de texto existente:
+Claro, vou atualizar o arquivo README.md com o novo conteúdo que você pediu.
+
 \`\`\`text:README.md
 Este é o novo conteúdo do README.
 \`\`\`
-Responda APENAS com o bloco de código se a intenção for modificar o arquivo. Você pode adicionar um breve texto de confirmação antes do bloco, se necessário.
 
 {{#if selectedPath}}
 ---

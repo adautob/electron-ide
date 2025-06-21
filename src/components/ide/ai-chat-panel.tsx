@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Copy, Check } from 'lucide-react';
+import { Send, Copy, Check, CheckCircle, XCircle, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,13 +12,20 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { FileOrFolder } from '@/types';
 
+interface FileOperation {
+  filePath: string;
+  content: string;
+}
+
 interface DisplayMessage extends AIChatMessage {
   id: string;
+  operations?: FileOperation[];
+  isApplied?: boolean; // To track if operations for a message have been applied
 }
 
 interface AiChatPanelProps {
   projectFiles: FileOrFolder[];
-  onFileOperation: (operation: { filePath: string; content: string }) => void;
+  onFileOperation: (operation: FileOperation) => void;
   selectedFilePath: string | null;
 }
 
@@ -35,7 +42,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeContent, language, filePath }
     try {
       await navigator.clipboard.writeText(codeContent);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
+      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy code:', err);
     }
@@ -65,8 +72,8 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeContent, language, filePath }
   );
 };
 
-const MIN_PANEL_WIDTH = 280; // Minimum width for the chat panel
-const DEFAULT_PANEL_WIDTH = 384; // Equivalent to w-96
+const MIN_PANEL_WIDTH = 280;
+const DEFAULT_PANEL_WIDTH = 384;
 
 export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }: AiChatPanelProps) {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
@@ -95,17 +102,12 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
     if (!isDragging) return;
     const deltaX = event.clientX - initialMouseX.current;
     let newWidth = initialPanelWidth.current - deltaX;
-
     if (newWidth < MIN_PANEL_WIDTH) newWidth = MIN_PANEL_WIDTH;
-    // No max width, let it expand
-    
     setPanelWidth(newWidth);
   }, [isDragging]);
 
   const handleMouseUp = useCallback(() => {
-    if (isDragging) {
-      setIsDragging(false);
-    }
+    if (isDragging) setIsDragging(false);
   }, [isDragging]);
 
   useEffect(() => {
@@ -122,14 +124,15 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-
   const scrollToBottom = () => {
-    if (scrollAreaRef.current) {
-      const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
-      if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight;
+    setTimeout(() => {
+      if (scrollAreaRef.current) {
+        const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
+        if (viewport) {
+          viewport.scrollTop = viewport.scrollHeight;
+        }
       }
-    }
+    }, 100);
   };
 
   useEffect(() => {
@@ -146,7 +149,6 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
     const processItem = async (item: FileOrFolder) => {
       if (item.type === 'file') {
         let contentToUse: string | undefined = item.content;
-
         if ((contentToUse === undefined || contentToUse === null) && item.handle && item.handle.kind === 'file') {
           try {
             const fsFileHandle = item.handle as FileSystemFileHandle;
@@ -157,12 +159,8 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
             contentToUse = undefined; 
           }
         }
-        
         if (typeof contentToUse === 'string') {
-          filesForAI.push({
-            filePath: item.path, 
-            fileContent: contentToUse,
-          });
+          filesForAI.push({ filePath: item.path, fileContent: contentToUse });
         }
       }
       if (item.children) {
@@ -175,21 +173,17 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
     for (const item of allProjectFiles) {
       await processItem(item);
     }
-    
     return filesForAI.length > 0 ? filesForAI : undefined;
   }, []);
 
+  const codeBlockWithFilepathRegex = /```(?:[\w.-]*):([^\n]+)\n([\s\S]*?)```/g;
 
   const handleSendMessage = async (e?: React.FormEvent<HTMLFormElement>) => {
     e?.preventDefault();
     const trimmedInput = inputValue.trim();
     if (!trimmedInput || isLoading) return;
 
-    const userMessage: DisplayMessage = {
-      id: Date.now().toString() + '-user',
-      role: 'user',
-      content: trimmedInput,
-    };
+    const userMessage: DisplayMessage = { id: Date.now().toString() + '-user', role: 'user', content: trimmedInput };
     setMessages((prevMessages) => [...prevMessages, userMessage]);
     setInputValue('');
     setIsLoading(true);
@@ -202,30 +196,30 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
          userMessage: trimmedInput, 
          history: historyForAI,
          selectedPath: selectedFilePath ?? undefined,
+         projectFiles: currentProjectFilesForAI,
       };
-      if (currentProjectFilesForAI) {
-        chatInput.projectFiles = currentProjectFilesForAI;
-      }
       
       const response = await chatWithAI(chatInput);
       const aiResponseText = response.aiResponse;
 
-      // Regex to find ```language:path/to/file.ext\n...```
-      const codeBlockRegex = /```(?:[\w.-]*):([^\n]+)\n([\s\S]*?)```/g;
+      const operations: FileOperation[] = [];
       let match;
-      
-      while ((match = codeBlockRegex.exec(aiResponseText)) !== null) {
+      while ((match = codeBlockWithFilepathRegex.exec(aiResponseText)) !== null) {
         const filePath = match[1].trim();
         const content = match[2].trim();
         if (filePath && content) {
-          onFileOperation({ filePath, content });
+          operations.push({ filePath, content });
         }
       }
+
+      const summaryText = aiResponseText.replace(codeBlockWithFilepathRegex, '').trim();
 
       const aiMessage: DisplayMessage = {
         id: Date.now().toString() + '-model',
         role: 'model',
-        content: aiResponseText,
+        content: summaryText,
+        operations: operations.length > 0 ? operations : undefined,
+        isApplied: false,
       };
       setMessages((prevMessages) => [...prevMessages, aiMessage]);
 
@@ -242,39 +236,47 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
     }
   };
 
+  const handleApplyChanges = (messageId: string) => {
+    const message = messages.find(m => m.id === messageId);
+    if (!message || !message.operations) return;
+
+    message.operations.forEach(op => {
+      onFileOperation(op);
+    });
+
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isApplied: true } : m));
+    
+    toast({
+      title: "Alterações Aplicadas",
+      description: `${message.operations.length} arquivo(s) foram modificados/criados.`,
+    });
+  };
+
+  const handleCancelChanges = (messageId: string) => {
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isApplied: true, operations: undefined } : m));
+    toast({
+      title: "Alterações Canceladas",
+      description: "Nenhuma alteração foi aplicada.",
+    });
+  };
+
   const renderMessageContent = (content: string) => {
+    const codeBlockRegex = /```(?:[\w.-]*)?\n([\s\S]*?)```/g;
     const parts = [];
     let lastIndex = 0;
-    // Regex to find ```language:path/to/file.ext\n...``` OR ```language\n...```
-    const codeBlockRegex = /```(?:([\w.-]*):([^\n]+))?\n([\s\S]*?)```/g;
     let match;
   
     while ((match = codeBlockRegex.exec(content)) !== null) {
-      // Text before the code block
       if (match.index > lastIndex) {
-        parts.push(
-          <span key={`text-${lastIndex}`} className="whitespace-pre-wrap font-sans">
-            {content.substring(lastIndex, match.index)}
-          </span>
-        );
+        parts.push(<span key={`text-${lastIndex}`} className="whitespace-pre-wrap font-sans">{content.substring(lastIndex, match.index)}</span>);
       }
-      // The code block
-      const language = match[1]?.trim();
-      const filePath = match[2]?.trim();
-      const code = match[3].trim();
-      parts.push(
-        <CodeBlock key={`code-${match.index}`} codeContent={code} language={language} filePath={filePath} />
-      );
+      const code = match[1].trim();
+      parts.push(<CodeBlock key={`code-${match.index}`} codeContent={code} />);
       lastIndex = codeBlockRegex.lastIndex;
     }
   
-    // Text remaining after the last code block
     if (lastIndex < content.length) {
-      parts.push(
-        <span key={`text-${lastIndex}`} className="whitespace-pre-wrap font-sans">
-          {content.substring(lastIndex)}
-        </span>
-      );
+      parts.push(<span key={`text-${lastIndex}`} className="whitespace-pre-wrap font-sans">{content.substring(lastIndex)}</span>);
     }
   
     return parts.length > 0 ? <>{parts}</> : <pre className="whitespace-pre-wrap font-sans">{content}</pre>;
@@ -283,7 +285,7 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
   return (
     <Card
       style={{ width: `${panelWidth}px` }}
-      className="flex flex-col h-full border-l border-yellow-500 rounded-none shrink-0 relative bg-background text-foreground"
+      className="flex flex-col h-full border-l border-border rounded-none shrink-0 relative bg-background text-foreground"
     >
       <div
         ref={dragHandleRef}
@@ -291,32 +293,42 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
         className="absolute top-0 left-0 h-full w-3 transform -translate-x-1/2 cursor-col-resize flex items-center justify-center z-20 group"
         title="Redimensionar painel"
       >
-        <div className="h-10 w-1 bg-yellow-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-150"></div>
+        <div className="h-10 w-1 bg-border rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-150"></div>
       </div>
-      <CardHeader className="p-3 border-b border-yellow-500">
+      <CardHeader className="p-3 border-b">
         <CardTitle className="text-base font-semibold font-headline">AI Chat</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 p-0 overflow-hidden">
         <ScrollArea className="h-full p-3" ref={scrollAreaRef}>
           <div className="space-y-4">
             {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  'flex flex-col',
-                  msg.role === 'user' ? 'items-end' : 'items-start'
-                )}
-              >
-                <div
-                  className={cn(
-                    'max-w-[95%] rounded-lg px-3 py-2 text-sm shadow-sm',
-                    msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground'
-                  )}
-                >
+              <div key={msg.id} className={cn('flex flex-col', msg.role === 'user' ? 'items-end' : 'items-start')}>
+                <div className={cn('max-w-[95%] rounded-lg px-3 py-2 text-sm shadow-sm', msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground')}>
                   {renderMessageContent(msg.content)}
                 </div>
+                {msg.role === 'model' && msg.operations && !msg.isApplied && (
+                  <div className="mt-2 p-3 rounded-lg border bg-card w-full max-w-[95%]">
+                    <h4 className="text-sm font-semibold mb-2">A IA propõe as seguintes alterações:</h4>
+                    <ul className="space-y-1 mb-3">
+                      {msg.operations.map((op, index) => (
+                        <li key={index} className="text-xs flex items-center gap-2 text-muted-foreground">
+                          <FileText size={14} />
+                          <span className="font-mono">{op.filePath}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => handleCancelChanges(msg.id)}>
+                        <XCircle className="mr-1" size={16} />
+                        Cancelar
+                      </Button>
+                      <Button size="sm" onClick={() => handleApplyChanges(msg.id)} className="bg-green-600 hover:bg-green-700 text-white">
+                        <CheckCircle className="mr-1" size={16} />
+                        Aplicar Alterações
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
             {isLoading && (
@@ -329,7 +341,7 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
           </div>
         </ScrollArea>
       </CardContent>
-      <CardFooter className="p-3 border-t border-yellow-500">
+      <CardFooter className="p-3 border-t">
         <form onSubmit={handleSendMessage} className="flex w-full items-center space-x-2">
           <Input
             ref={inputRef}
