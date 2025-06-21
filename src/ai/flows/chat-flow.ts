@@ -50,7 +50,7 @@ const chatPrompt = ai.definePrompt({
 **1. MODO DE CONVERSA E PERGUNTAS**
 - Se o usuário fizer uma pergunta geral (ex: "Como funciona o hook \`useEffect\`?"), pedir informações sobre o projeto (ex: "Quais arquivos existem?") ou apenas conversar, sua resposta deve ser uma conversa normal.
 - **NÃO GERE** blocos \`[START_FILE]\` para essas perguntas.
-- Se precisar mostrar um pequeno trecho de código como exemplo na conversa, use blocos de código Markdown padrão com três crases (\`\`\`).
+- Se precisar mostrar um pequeno trecho de código como exemplo na conversa, use blocos de código Markdown padrão com três crases (\\\`\\\`\\\`).
 
 **2. MODO DE MODIFICAÇÃO DE CÓDIGO**
 - Use este modo **APENAS** quando o usuário pedir explicitamente para **criar, alterar, modificar ou consertar** um ou mais arquivos.
@@ -59,7 +59,8 @@ const chatPrompt = ai.definePrompt({
     -   **Passo 2: Blocos de Arquivo.** Imediatamente após o resumo, forneça o(s) bloco(s) \`[START_FILE]...[END_FILE]\`. Uma máquina irá ler este bloco, por isso o formato deve ser exato.
         -   O bloco DEVE começar com \`[START_FILE:caminho/completo/do/arquivo.ext]\`.
         -   O conteúdo dentro do bloco é o **CONTEÚDO FINAL E COMPLETO DO ARQUIVO**.
-        -   O conteúdo **NUNCA, JAMAIS,** deve conter os delimitadores de Markdown (\`\`\`).
+        -   **Para cada arquivo a ser modificado, forneça apenas um único bloco \`[START_FILE]\`. Se precisar fazer várias alterações em um arquivo, inclua todas elas no único bloco desse arquivo.**
+        -   O conteúdo **NUNCA, JAMAIS,** deve conter os delimitadores de Markdown (\\\`\\\`\\\`).
         -   O bloco DEVE terminar com \`[END_FILE]\`.
     -   **Exemplo CORRETO para múltiplos arquivos:**
         Certo, vou criar o componente \`Login.jsx\` e seu CSS.
@@ -86,9 +87,9 @@ O usuário tem o seguinte arquivo/pasta selecionado no momento: \`{{selectedPath
 {{#each projectFiles}}
 Caminho do Arquivo: {{{this.filePath}}}
 Conteúdo:
-\`\`\`
+\\\`\\\`\\\`
 {{{this.fileContent}}}
-\`\`\`
+\\\`\\\`\\\`
 {{/each}}
 ---
 {{/if}}
@@ -107,7 +108,7 @@ Usuário: {{{userMessage}}}
 **RELEMBRE-SE ANTES DE RESPONDER:**
 - Primeiro, decida a intenção do usuário: é uma **pergunta** ou um pedido de **modificação de código**?
 - Se for uma pergunta, responda normalmente no chat.
-- Se for uma modificação, use o formato \`[START_FILE]\`. Lembre-se: **NUNCA** coloque \`\`\` dentro de um bloco \`[START_FILE]\`.
+- Se for uma modificação, use o formato \`[START_FILE]\`. Lembre-se: **NUNCA** coloque \\\`\\\`\\\` dentro de um bloco \`[START_FILE]\`.
 
 Resposta da IA:`,
 });

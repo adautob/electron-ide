@@ -202,17 +202,18 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
       const response = await chatWithAI(chatInput);
       const aiResponseText = response.aiResponse;
 
-      const operations: FileOperation[] = [];
+      // Use a Map to automatically handle duplicate file paths, keeping only the last one.
+      const operationMap = new Map<string, FileOperation>();
       let match;
-      // Reset regex from previous executions
-      fileOperationRegex.lastIndex = 0;
+      fileOperationRegex.lastIndex = 0; // Reset regex from previous executions
       while ((match = fileOperationRegex.exec(aiResponseText)) !== null) {
         const filePath = match[1].trim();
         const content = match[2];
         if (filePath && content !== undefined) {
-          operations.push({ filePath, content });
+          operationMap.set(filePath, { filePath, content });
         }
       }
+      const operations = Array.from(operationMap.values());
       
       const summaryText = aiResponseText.replace(fileOperationRegex, '').trim();
 
