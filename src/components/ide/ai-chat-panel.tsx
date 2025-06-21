@@ -206,8 +206,8 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
       let match;
       while ((match = codeBlockWithFilepathRegex.exec(aiResponseText)) !== null) {
         const filePath = match[1].trim();
-        const content = match[2].trim();
-        if (filePath && content) {
+        const content = match[2]; // Removed .trim() to preserve newlines
+        if (filePath && content !== undefined) {
           operations.push({ filePath, content });
         }
       }
@@ -270,7 +270,7 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
       if (match.index > lastIndex) {
         parts.push(<span key={`text-${lastIndex}`} className="whitespace-pre-wrap font-sans">{content.substring(lastIndex, match.index)}</span>);
       }
-      const code = match[1].trim();
+      const code = match[1]; // Removed .trim() to preserve newlines
       parts.push(<CodeBlock key={`code-${match.index}`} codeContent={code} />);
       lastIndex = codeBlockRegex.lastIndex;
     }

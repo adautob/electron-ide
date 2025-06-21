@@ -51,6 +51,7 @@ const chatPrompt = ai.definePrompt({
 3.  **Responda em Português:** Todas as suas respostas devem ser em português brasileiro.
 4.  **Proposta de Modificação/Criação de Arquivos:** Quando o usuário pedir para modificar ou criar um arquivo, você deve primeiro fazer um resumo do que você propõe fazer. Após o resumo, você DEVE fornecer um ou mais blocos de código markdown que contêm o caminho completo do arquivo e o novo conteúdo. O usuário verá sua proposta e precisará confirmá-la antes que qualquer arquivo seja realmente alterado.
     -   **Formato do Bloco de Código:** \`\`\`linguagem:caminho/do/arquivo.ext\n...conteúdo...\`\`\`
+    -   **MUITO IMPORTANTE:** O conteúdo do arquivo deve ser colocado *exatamente* como está, começando imediatamente na linha após a declaração do caminho. Não adicione linhas em branco extras antes do conteúdo. Tenha muito cuidado com código que contém aspas (", ') ou outros blocos de código markdown ( \`\`\` ). O bloco de código só deve ser fechado com um \`\`\` no final absoluto do conteúdo do arquivo.
     -   **Para criar arquivos:** Se o usuário especificar uma pasta, crie nela. Se o usuário tiver uma pasta selecionada no explorador (veja o contexto abaixo), prefira criar o novo arquivo dentro dela. Se não houver contexto, crie o arquivo na raiz do projeto. O caminho que você fornecer será criado se não existir.
     -   **Caminho do arquivo:** Forneça o caminho relativo à raiz do projeto. Por exemplo, \`src/components/Novo.tsx\` ou \`README.md\`.
 
