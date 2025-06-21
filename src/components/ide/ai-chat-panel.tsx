@@ -176,7 +176,7 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
     return filesForAI.length > 0 ? filesForAI : undefined;
   }, []);
 
-  const fileOperationRegex = /\[START_FILE:([^\]]+)\]\n?([\s\S]*?)\n?\[END_FILE\]/g;
+  const fileOperationRegex = /\[START_FILE:([^\]]+)\]([\s\S]*?)\[END_FILE\]/g;
 
   const handleSendMessage = async (e?: React.FormEvent<HTMLFormElement>) => {
     e?.preventDefault();
@@ -204,8 +204,11 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
 
       const operations: FileOperation[] = [];
       let match;
+      // Reset regex from previous executions
+      fileOperationRegex.lastIndex = 0;
       while ((match = fileOperationRegex.exec(aiResponseText)) !== null) {
         const filePath = match[1].trim();
+        // Do not trim the content, to preserve newlines at start/end of file
         const content = match[2];
         if (filePath && content !== undefined) {
           operations.push({ filePath, content });
@@ -279,7 +282,7 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
       parts.push(<span key={`text-${lastIndex}`} className="whitespace-pre-wrap break-words font-sans">{content.substring(lastIndex)}</span>);
     }
   
-    return parts.length > 0 ? <>{parts}</> : <pre className="whitespace-pre-wrap break-words font-sans">{content}</pre>;
+    return parts.length > 0 ? <>{parts}</> : <span className="whitespace-pre-wrap break-words font-sans">{content}</span>;
   };
 
   return (
@@ -303,11 +306,11 @@ export function AiChatPanel({ projectFiles, onFileOperation, selectedFilePath }:
           <div className="space-y-4">
             {messages.map((msg) => (
               <div key={msg.id} className={cn('flex flex-col', msg.role === 'user' ? 'items-end' : 'items-start')}>
-                <div className={cn('max-w-[95%] rounded-lg px-3 py-2 text-sm shadow-sm', msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground')}>
+                <div className={cn('max-w-[95%] rounded-lg px-3 py-2 text-sm shadow-sm overflow-x-auto', msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground')}>
                   {renderMessageContent(msg.content)}
                 </div>
                 {msg.role === 'model' && msg.operations && !msg.isApplied && (
-                  <div className="mt-2 p-3 rounded-lg border bg-card w-full max-w-[95%]">
+                  <div className="mt-2 p-3 rounded-lg border bg-card w-full max-w-[95%] overflow-x-auto">
                     <h4 className="text-sm font-semibold mb-2">A IA propõe as seguintes alterações:</h4>
                     <ul className="space-y-1 mb-3">
                       {msg.operations.map((op, index) => (
