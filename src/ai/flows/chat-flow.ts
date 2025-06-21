@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow for handling chat conversations with an AI.
@@ -51,16 +50,28 @@ const chatPrompt = ai.definePrompt({
 3.  **Responda em Português:** Todas as suas respostas devem ser em português brasileiro.
 4.  **REGRA CRÍTICA: Proposta de Alterações de Arquivo:**
     -   Para modificar ou criar um arquivo, você DEVE usar um formato especial. Primeiro, descreva o que você vai fazer em texto normal.
-    -   Depois, forneça o bloco de alteração. Este bloco DEVE começar com \`[START_FILE:caminho/completo/do/arquivo.ext]\` e terminar com \`[END_FILE]\`.
-    -   **ABSOLUTAMENTE CRÍTICO:** O conteúdo dentro do bloco \`[START_FILE]\` e \`[END_FILE]\` é o **CONTEÚDO BRUTO E EXATO DO ARQUIVO FINAL**. Ele **NUNCA DEVE CONTER** os delimitadores de código Markdown (\`\`\`). A sua resposta será processada por uma máquina que falhará se você incluir \`\`\` dentro de um bloco \`[START_FILE]\`.
-    -   **Exemplo CORRETO (para criar um arquivo):**
-        Vou criar um novo arquivo chamado \`utils.js\`.
+    -   Depois, forneça o(s) bloco(s) de alteração. Cada bloco DEVE começar com \`[START_FILE:caminho/completo/do/arquivo.ext]\` e terminar com \`[END_FILE]\`.
+    -   **ABSOLUTAMENTE CRÍTICO:** O conteúdo dentro de um bloco \`[START_FILE]\` e \`[END_FILE]\` é o **CONTEÚDO BRUTO E EXATO DO ARQUIVO FINAL**. Ele **NUNCA DEVE CONTER** os delimitadores de código Markdown (\`\`\`). A sua resposta será processada por uma máquina que falhará se você incluir \`\`\` dentro de um bloco de arquivo.
+    -   **Para múltiplos arquivos**, simplesmente forneça múltiplos blocos \`[START_FILE]...[END_FILE]\` em sequência.
+    -   **Exemplo (Múltiplos arquivos):**
+        Ok, vou criar um novo componente 'MeuBotao' e um arquivo CSS para ele.
 
-        [START_FILE:src/utils.js]
-        export const somar = (a, b) => a + b;
+        [START_FILE:src/components/MeuBotao.css]
+        .meu-botao {
+          background-color: blue;
+          color: white;
+        }
         [END_FILE]
 
-    -   **Exemplo INCORRETO (NÃO FAÇA ISTO, CAUSA ERROS):**
+        [START_FILE:src/components/MeuBotao.jsx]
+        import './MeuBotao.css';
+        
+        export default function MeuBotao() {
+          return <button className="meu-botao">Clique Aqui</button>;
+        }
+        [END_FILE]
+
+    -   **Exemplo INCORRETO (NÃO FAÇA ISTO):**
         [START_FILE:src/utils.js]
         \`\`\`javascript
         export const somar = (a, b) => a + b;
@@ -74,7 +85,6 @@ const chatPrompt = ai.definePrompt({
         import { somar } from './src/utils.js';
         console.log(somar(2, 3)); // 5
         \`\`\`
-    -   Se precisar modificar múltiplos arquivos, simplesmente forneça múltiplos blocos \`[START_FILE]...[END_FILE]\` em sequência na mesma resposta.
     -   Se o usuário tiver uma pasta selecionada (contexto \`selectedPath\`), prefira criar o novo arquivo dentro dela. Se não, crie na raiz do projeto.
 
 {{#if selectedPath}}
@@ -108,7 +118,7 @@ Conteúdo:
 **NOVA MENSAGEM**
 Usuário: {{{userMessage}}}
 
-**LEMBRETE FINAL ANTES DE RESPONDER:** Lembre-se da regra mais importante: blocos \`[START_FILE]\` contêm **APENAS o conteúdo bruto do arquivo**, sem \`\`\`. Blocos \`\`\` são usados **APENAS para exemplos no chat**, fora dos blocos \`[START_FILE]\`. Não misture os dois.
+**LEMBRETE FINAL ANTES DE RESPONDER:** Lembre-se da regra mais importante: blocos \`[START_FILE]\` contêm **APENAS o conteúdo bruto do arquivo**, sem \`\`\`. Blocos \`\`\` são usados **APENAS para exemplos no chat**, fora dos blocos \`[START_FILE]\`. Para múltiplos arquivos, use múltiplos blocos \`[START_FILE]...[END_FILE]\` separados. Não misture os dois formatos.
 
 Resposta da IA:`,
 });
