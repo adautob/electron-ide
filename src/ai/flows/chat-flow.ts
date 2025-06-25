@@ -126,14 +126,20 @@ const chatFlow = ai.defineFlow(
     outputSchema: ChatOutputSchema,
   },
   async (input) => {
-    // If an OpenRouter API key is provided, use the openrouter-kit directly.
+    // If an OpenRouter API key is provided, use the official OpenAI SDK configured for OpenRouter.
     if (process.env.OPENROUTER_API_KEY) {
       try {
         // Dynamically import to avoid issues if the package isn't installed.
-        const { OpenRouterClient } = await import('openrouter-kit');
-        const client = new OpenRouterClient({ apiKey: process.env.OPENROUTER_API_KEY });
+        const { OpenAI } = await import('openai');
+        const openrouter = new OpenAI({
+          baseURL: 'https://openrouter.ai/api/v1',
+          apiKey: process.env.OPENROUTER_API_KEY,
+          defaultHeaders: {
+             'HTTP-Referer': 'http://localhost:9002', // Recommended by OpenRouter
+             'X-Title': 'Electron IDE', // Recommended by OpenRouter
+          },
+        });
         
-        // Manually construct the system prompt context that was handled by Handlebars.
         let systemPrompt = `Você é um assistente de IA especialista em programação, integrado a um IDE. Sua função é ajudar os usuários com suas tarefas de codificação. Você opera em dois modos: CONVERSA ou MODIFICAÇÃO DE ARQUIVO. É vital que você siga estas regras estritamente.
 
 **1. MODO DE CONVERSA**
@@ -164,8 +170,6 @@ const chatFlow = ai.defineFlow(
           systemPrompt += `\n\n---\n**CONTEXTO DO PROJETO (Arquivos Fornecidos)**\n${projectFilesText}\n---`;
         }
         
-        // The message history is added after the main system prompt.
-        // openrouter-kit expects role 'assistant', not 'model'.
         const messages: any[] = [{ role: 'system', content: systemPrompt }];
         
         if (input.history) {
@@ -180,7 +184,7 @@ const chatFlow = ai.defineFlow(
         
         const modelName = process.env.OPENROUTER_MODEL_NAME || 'openai/gpt-4o-mini';
 
-        const response = await client.chat.completions.create({
+        const response = await openrouter.chat.completions.create({
           model: modelName,
           messages: messages,
           max_tokens: 8192,
