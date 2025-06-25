@@ -11,7 +11,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ChatMessageSchema = z.object({
-  role: z.enum(['user', 'model']),
+  role: z.enum(['user', 'model', 'system', 'assistant']),
   content: z.string(),
 });
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
@@ -38,8 +38,8 @@ export async function chatWithAI(input: ChatInput): Promise<ChatOutput> {
   return chatFlow(input);
 }
 
-// Note: No model is specified here. It will use the default model configured in `src/ai/genkit.ts`.
-// This makes the chat flow automatically compatible with either Google AI or OpenRouter.
+// Note: This Genkit prompt is now only used if the OPENROUTER_API_KEY is not set.
+// The main logic in chatFlow will bypass this and use openrouter-kit directly.
 const chatPrompt = ai.definePrompt({
   name: 'ideChatPrompt',
   input: { schema: ChatInputSchema },
@@ -126,10 +126,81 @@ const chatFlow = ai.defineFlow(
     outputSchema: ChatOutputSchema,
   },
   async (input) => {
-    const llmResponse = await chatPrompt(input, {
-      history: input.history,
-    });
-    
-    return { aiResponse: llmResponse.text };
+    // If an OpenRouter API key is provided, use the openrouter-kit directly.
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        // Dynamically import to avoid issues if the package isn't installed.
+        const { OpenRouterClient } = await import('openrouter-kit');
+        const client = new OpenRouterClient({ apiKey: process.env.OPENROUTER_API_KEY });
+        
+        // Manually construct the system prompt context that was handled by Handlebars.
+        let systemPrompt = `Você é um assistente de IA especialista em programação, integrado a um IDE. Sua função é ajudar os usuários com suas tarefas de codificação. Você opera em dois modos: CONVERSA ou MODIFICAÇÃO DE ARQUIVO. É vital que você siga estas regras estritamente.
+
+**1. MODO DE CONVERSA**
+- Use este modo para perguntas gerais (ex: "Como funciona o hook \`useEffect\`?"), pedidos de informação sobre o projeto (ex: "Quais arquivos existem?"), ou conversas casuais.
+- Sua resposta deve ser uma conversa normal.
+- Se precisar mostrar um pequeno trecho de código como exemplo, use blocos de código Markdown padrão com três crases (\`\`\`).
+- **NÃO GERE** o bloco \`[START_FILE]\` neste modo.
+
+**2. MODO DE MODIFICAÇÃO DE ARQUIVO**
+- Use este modo **APENAS** quando o usuário pedir explicitamente para **criar, alterar, modificar ou consertar** um ou mais arquivos.
+- Sua resposta DEVE seguir este formato exato:
+    -   **Passo 1: Resumo (Sem Código).** Comece com um resumo de 1-2 frases do que você vai fazer.
+        -   **EXEMPLO DE RESUMO:** "Claro, vou adicionar um novo estado ao componente e um botão para atualizá-lo."
+        -   **REGRA IMPORTANTE:** Esta parte do resumo **NÃO PODE** conter nenhum trecho de código. É apenas uma explicação em texto.
+    -   **Passo 2: Blocos de Arquivo.** Imediatamente após o resumo, gere os blocos de alteração. Uma máquina irá processá-los, então o formato deve ser perfeito.
+        -   Começo do bloco: \`[START_FILE:caminho/completo/do/arquivo.ext]\`
+        -   Conteúdo: O conteúdo completo e final do arquivo.
+        -   Fim do bloco: \`[END_FILE]\`
+        -   **REGRA CRÍTICA:** O conteúdo dentro de \`[START_FILE]\` **NUNCA** deve ser envolvido por crases (\`\`\`).
+        -   **Para múltiplos arquivos,** gere um bloco \`[START_FILE]...[END_FILE]\` para cada arquivo, um após o outro.`;
+
+        if (input.selectedPath) {
+          systemPrompt += `\n\n---\n**CONTEXTO ATUAL DO USUÁRIO:**\nO usuário tem o seguinte arquivo/pasta selecionado no momento: \`${input.selectedPath}\`. Use isso como uma dica de onde criar novos arquivos.\n---`;
+        }
+
+        if (input.projectFiles && input.projectFiles.length > 0) {
+          const projectFilesText = input.projectFiles.map(f => `Caminho do Arquivo: ${f.filePath}\nConteúdo:\n\`\`\`\n${f.fileContent}\n\`\`\``).join('\n---\n');
+          systemPrompt += `\n\n---\n**CONTEXTO DO PROJETO (Arquivos Fornecidos)**\n${projectFilesText}\n---`;
+        }
+        
+        // The message history is added after the main system prompt.
+        // openrouter-kit expects role 'assistant', not 'model'.
+        const messages: any[] = [{ role: 'system', content: systemPrompt }];
+        
+        if (input.history) {
+          const mappedHistory = input.history.map(msg => ({
+              ...msg,
+              role: msg.role === 'model' ? 'assistant' : msg.role,
+          }));
+          messages.push(...mappedHistory);
+        }
+
+        messages.push({ role: 'user', content: input.userMessage });
+        
+        const modelName = process.env.OPENROUTER_MODEL_NAME || 'openai/gpt-4o-mini';
+
+        const response = await client.chat.completions.create({
+          model: modelName,
+          messages: messages,
+          max_tokens: 8192,
+        });
+        
+        const aiResponse = response.choices[0]?.message?.content || 'Desculpe, não consegui gerar uma resposta.';
+        
+        return { aiResponse };
+
+      } catch (error: any) {
+        console.error("Error calling OpenRouter:", error);
+        return { aiResponse: `Ocorreu um erro ao contatar a API do OpenRouter: ${error.message}` };
+      }
+    } else {
+      // Fallback to Genkit (Google AI) if OpenRouter key is not set.
+      const llmResponse = await chatPrompt(input, {
+        history: input.history,
+      });
+      
+      return { aiResponse: llmResponse.text };
+    }
   }
 );
