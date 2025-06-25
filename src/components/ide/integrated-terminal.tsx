@@ -1,10 +1,16 @@
 
 "use client";
 
+import type { FileOrFolder } from '@/types';
 import React, { useState, useEffect, useRef } from 'react';
 
-export function IntegratedTerminal() {
-  const [lines, setLines] = useState<string[]>(['Bem-vindo ao terminal simulado!', '> ']);
+interface IntegratedTerminalProps {
+  files?: FileOrFolder[];
+  openedDirectoryName?: string | null;
+}
+
+export function IntegratedTerminal({ files = [], openedDirectoryName }: IntegratedTerminalProps) {
+  const [lines, setLines] = useState<string[]>(['Bem-vindo ao terminal simulado!', 'Digite `help` para ver os comandos disponíveis.', '> ']);
   const [input, setInput] = useState('');
   const endOfTerminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -16,35 +22,53 @@ export function IntegratedTerminal() {
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       const command = input.trim();
-      const newLines = [...lines.slice(0, -1), `> ${command}`]; // Overwrite the last prompt line with the command
-      
+      const newLines = [...lines.slice(0, -1), `> ${command}`];
+
       if (command) {
-        // Simulate some basic commands
-        if (command.toLowerCase() === 'clear') {
-          setLines(['> ']);
-        } else if (command.toLowerCase() === 'help') {
-          newLines.push("Comandos simulados: 'clear', 'help', 'echo [texto]'");
-          newLines.push('> ');
-          setLines(newLines);
-        } else if (command.toLowerCase().startsWith('echo ')) {
-          newLines.push(command.substring(5));
-          newLines.push('> ');
-          setLines(newLines);
-        } else {
-          newLines.push(`bash: comando não encontrado: ${command}`);
-          newLines.push('> ');
-          setLines(newLines);
+        const [cmd, ...args] = command.toLowerCase().split(' ');
+        
+        switch (cmd) {
+          case 'clear':
+            setLines(['> ']);
+            setInput('');
+            return;
+          case 'help':
+            newLines.push("Comandos simulados: 'clear', 'help', 'echo [texto]', 'ls', 'pwd', 'whoami', 'date'");
+            break;
+          case 'echo':
+            newLines.push(input.substring(5));
+            break;
+          case 'ls':
+            if (files.length > 0) {
+                const fileList = files.map(item => `${item.name}${item.type === 'folder' ? '/' : ''}`);
+                newLines.push(...fileList);
+            } else {
+                newLines.push('Nenhuma pasta aberta para listar arquivos.');
+            }
+            break;
+          case 'pwd':
+            newLines.push(openedDirectoryName ? `/${openedDirectoryName}` : '/');
+            break;
+          case 'whoami':
+            newLines.push('developer');
+            break;
+          case 'date':
+            newLines.push(new Date().toString());
+            break;
+          default:
+            newLines.push(`bash: comando não encontrado: ${command}`);
+            break;
         }
-      } else {
-        newLines.push('> ');
-        setLines(newLines);
       }
+      
+      newLines.push('> ');
+      setLines(newLines);
       setInput('');
     }
   };
   
   useEffect(() => {
-    endOfTerminalRef.current?.scrollIntoView();
+    endOfTerminalRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [lines]);
 
   useEffect(() => {
