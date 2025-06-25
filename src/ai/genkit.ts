@@ -1,7 +1,7 @@
 
 import {genkit, type Plugin} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
-import * as openrouter from 'openrouter-kit';
+import customModel from 'openrouter-kit';
 
 const plugins: Plugin<any>[] = [];
 let defaultModel: string | undefined;
@@ -10,7 +10,7 @@ let defaultModel: string | undefined;
 if (process.env.OPENROUTER_API_KEY) {
   const modelName = process.env.OPENROUTER_MODEL_NAME || 'openai/gpt-4o';
   plugins.push(
-    openrouter.customModel('openrouter', {
+    customModel('openrouter', {
       apiKey: process.env.OPENROUTER_API_KEY,
       modelName: modelName,
     })
