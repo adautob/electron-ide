@@ -1,7 +1,7 @@
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
-// Keep the context bridge but remove terminal-specific APIs
-// as they are not needed for the simulated terminal.
 contextBridge.exposeInMainWorld('electronAPI', {
-  // No-op
+  // --- Terminal IPC ---
+  // The terminal functionality has been temporarily removed 
+  // to resolve a native dependency installation issue.
 });

@@ -13,7 +13,6 @@ import type { FileOrFolder } from '@/types';
 import { generateCodeFromComment } from '@/ai/flows/ai-code-completion';
 import { aiCodeCompletionFromContext, type AICodeCompletionFromContextInput } from '@/ai/flows/ai-code-completion-from-context';
 import { useToast } from '@/hooks/use-toast';
-import { IntegratedTerminal } from '@/components/ide/integrated-terminal';
 
 // Helper function to find an item by path in a nested structure
 const findItemByPathRecursive = (items: FileOrFolder[], path: string): FileOrFolder | null => {
@@ -800,7 +799,11 @@ export default function IdePage() {
             fileName={activeFile?.name || (files.length === 0 && !openedDirectoryName ? "No file open" : (openedDirectoryName && !activeFile ? (openedDirectoryName.split('/').pop() || openedDirectoryName) : "Select a file"))}
           />
           <TerminalResizableWrapper initialHeight={220} minHeight={80} maxHeight={500}>
-            <IntegratedTerminal />
+            <div className="w-full h-full bg-card flex items-center justify-center text-muted-foreground p-4">
+              <p className="text-center text-sm">
+                Terminal desativado devido a problemas de dependência nativa.
+              </p>
+            </div>
           </TerminalResizableWrapper>
         </div>
         <AiChatPanel 
