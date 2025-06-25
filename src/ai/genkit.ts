@@ -1,4 +1,6 @@
-import {genkit, type Plugin} from 'genkit';
+'use server';
+
+import {genkit, type ModelReference, type Plugin} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 import {openAI} from 'genkitx-openai';
 
@@ -18,11 +20,14 @@ if (process.env.OPENROUTER_API_KEY) {
         'HTTP-Referer': 'https://github.com/firebase/genkit-samples',
         'X-Title': 'Electron IDE',
       },
+      // This mapper removes our internal routing prefix ('openrouter/')
+      // before sending the model name to the OpenRouter API.
+      modelMapper: (model: ModelReference<any>) => {
+        return model.name.replace(/^openrouter\//, '');
+      },
     })
   );
   // We must prefix the model with our custom plugin name for Genkit's routing.
-  // Genkit strips this prefix before sending the model name to the API.
-  // So the API will receive the clean model name (e.g., 'openai/gpt-4o-mini'), which is correct.
   defaultModel = `openrouter/${modelName}`;
   console.log(`INFO: Using OpenRouter. Genkit model for routing: ${defaultModel}`);
 
