@@ -1,11 +1,6 @@
 // electron-main.js
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const os = require('os');
-const pty = require('node-pty');
-
-// Determine the correct shell for the OS
-const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
 
 async function createWindow() {
   const { default: isDev } = await import('electron-is-dev');
@@ -27,34 +22,6 @@ async function createWindow() {
   if (isDev) {
     win.webContents.openDevTools();
   }
-
-  // --- Terminal Spawning Logic ---
-  const ptyProcess = pty.spawn(shell, [], {
-    name: 'xterm-color',
-    cols: 80,
-    rows: 30,
-    cwd: process.env.HOME, // Start in the user's home directory
-    env: process.env
-  });
-
-  // Send data from the pty to the renderer process
-  ptyProcess.onData(data => {
-    win.webContents.send('pty:data', data);
-  });
-
-  // Handle data coming from the renderer process to the pty
-  ipcMain.on('pty:write', (event, data) => {
-    ptyProcess.write(data);
-  });
-
-  // Handle terminal resize events
-  ipcMain.on('pty:resize', (event, { cols, rows }) => {
-    ptyProcess.resize(cols, rows);
-  });
-  
-  win.on('closed', () => {
-    ptyProcess.kill();
-  });
 }
 
 app.whenReady().then(async () => {

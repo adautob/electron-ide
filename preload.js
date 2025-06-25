@@ -1,17 +1,5 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge } = require('electron');
 
-contextBridge.exposeInMainWorld('electronAPI', {
-  // From Main to Renderer
-  pty: {
-    onData: (callback) => ipcRenderer.on('pty:data', (event, data) => callback(data)),
-  },
-  
-  // From Renderer to Main
-  writeToPty: (data) => ipcRenderer.send('pty:write', data),
-  resizePty: (size) => ipcRenderer.send('pty:resize', size),
-  
-  // A function to remove all listeners, useful for component cleanup
-  removeAllListeners: () => {
-      ipcRenderer.removeAllListeners('pty:data');
-  }
-});
+// Expose a minimal, empty API to avoid errors if other parts of the app
+// expect window.electronAPI to exist.
+contextBridge.exposeInMainWorld('electronAPI', {});

@@ -1,137 +1,176 @@
-
 "use client";
 
-import React, { useEffect, useRef, useLayoutEffect } from 'react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { useTheme } from '@/contexts/theme-provider';
+import React, { useState, useRef, useEffect, KeyboardEvent } from 'react';
+import type { FileOrFolder } from '@/types';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
 
-// Define the structure of the API exposed by preload.js
-declare global {
-  interface Window {
-    electronAPI: {
-      pty: {
-        onData: (callback: (data: string) => void) => void;
-      };
-      writeToPty: (data: string) => void;
-      resizePty: (size: { cols: number; rows: number }) => void;
-      removeAllListeners: () => void;
-    };
-  }
+interface SimulatedTerminalProps {
+  files: FileOrFolder[];
+  openedDirectoryName: string | null;
 }
 
-const darkTheme = {
-  background: '#1e1e1e',
-  foreground: '#d4d4d4',
-  cursor: '#d4d4d4',
-  selectionBackground: '#264f78',
-  black: '#000000',
-  red: '#cd3131',
-  green: '#0dbc79',
-  yellow: '#e5e510',
-  blue: '#2472c8',
-  magenta: '#bc3fbc',
-  cyan: '#11a8cd',
-  white: '#e5e5e5',
-  brightBlack: '#666666',
-  brightRed: '#f14c4c',
-  brightGreen: '#23d186',
-  brightYellow: '#f5f543',
-  brightBlue: '#3b8eea',
-  brightMagenta: '#d670d6',
-  brightCyan: '#29b8db',
-  brightWhite: '#e5e5e5',
+const findItemByPath = (items: FileOrFolder[], pathSegments: string[]): FileOrFolder | null => {
+  if (pathSegments.length === 0) {
+    // This represents the root of the opened directory
+    const rootNode: FileOrFolder = { id: 'root', name: 'root', type: 'folder', path: '', children: items, handle: undefined };
+    return rootNode;
+  }
+  let currentLevel: FileOrFolder[] | undefined = items;
+  let found: FileOrFolder | null = null;
+  for (const segment of pathSegments) {
+    if (!currentLevel) return null;
+    const nextItem = currentLevel.find(item => item.name === segment);
+    if (nextItem) {
+      found = nextItem;
+      currentLevel = nextItem.children;
+    } else {
+      return null;
+    }
+  }
+  return found;
 };
 
-const lightTheme = {
-    background: '#ffffff',
-    foreground: '#000000',
-    cursor: '#000000',
-    selectionBackground: '#aaccff',
-    black: '#000000',
-    red: '#c51e1e',
-    green: '#13a10e',
-    yellow: '#c19c00',
-    blue: '#0037da',
-    magenta: '#881798',
-    cyan: '#3a96dd',
-    white: '#cccccc',
-    brightBlack: '#767676',
-    brightRed: '#e74848',
-    brightGreen: '#16c60c',
-    brightYellow: '#f9f1a5',
-    brightBlue: '#3b78ff',
-    brightMagenta: '#b4009e',
-    brightCyan: '#61d6d6',
-    brightWhite: '#f2f2f2',
-};
 
-export function IntegratedTerminal() {
-  const terminalRef = useRef<HTMLDivElement>(null);
-  const { theme } = useTheme();
+export function IntegratedTerminal({ files, openedDirectoryName }: SimulatedTerminalProps) {
+  const [history, setHistory] = useState<string[]>(['Bem-vindo ao terminal simulado. Digite "help" para ver os comandos.']);
+  const [input, setInput] = useState('');
+  const [currentPath, setCurrentPath] = useState<string[]>([]);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  const basePath = openedDirectoryName ? `~/${openedDirectoryName.split('/').pop()}` : '~';
 
-  useLayoutEffect(() => {
-    if (!terminalRef.current || typeof window.electronAPI === 'undefined') {
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      if (scrollAreaRef.current) {
+        const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
+        if (viewport) {
+          viewport.scrollTop = viewport.scrollHeight;
+        }
+      }
+    }, 100);
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [history]);
+  
+  useEffect(() => {
+    // Reset path when directory changes
+    setCurrentPath([]);
+  }, [openedDirectoryName]);
+
+  const handleCommand = (command: string) => {
+    const displayPath = [basePath, ...currentPath].join('/');
+    const newHistory = [...history, `${displayPath}$ ${command}`];
+    const [cmd, ...args] = command.trim().split(' ');
+
+    if (!openedDirectoryName) {
+      setHistory([...newHistory, 'Erro: Nenhuma pasta aberta.']);
       return;
     }
 
-    const term = new Terminal({
-      cursorBlink: true,
-      fontFamily: '"Source Code Pro", monospace',
-      fontSize: 14,
-      theme: theme === 'dark' ? darkTheme : lightTheme,
-      allowProposedApi: true,
-    });
-    
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
-    
-    term.open(terminalRef.current);
-    fitAddon.fit();
+    switch (cmd) {
+      case 'help':
+        newHistory.push('Comandos disponíveis: help, ls, cd, pwd, clear, echo');
+        break;
+      case 'ls':
+        const currentDir = findItemByPath(files, currentPath);
+        if (currentDir && currentDir.type === 'folder' && currentDir.children) {
+          if (currentDir.children.length === 0) {
+            newHistory.push(''); // No output for empty dir, just a new line
+          } else {
+            const listings = currentDir.children.map(item =>
+              item.type === 'folder' ? `${item.name}/` : item.name
+            );
+            newHistory.push(listings.join('  '));
+          }
+        } else {
+            newHistory.push(`ls: não foi possível acessar '${currentPath.join('/')}': Arquivo ou diretório não encontrado`);
+        }
+        break;
+      case 'cd':
+        const targetPath = args[0];
+        if (!targetPath || targetPath === '~' || targetPath === '/') {
+          setCurrentPath([]);
+        } else if (targetPath === '..') {
+          setCurrentPath(prev => prev.slice(0, -1));
+        } else {
+          // Normalize path, handling both relative and absolute-from-root scenarios
+          const pathSegments = targetPath.startsWith('/')
+            ? targetPath.substring(1).split('/').filter(p => p) // from root
+            : [...currentPath, ...targetPath.split('/')].filter(p => p); // relative
+            
+          const normalizedSegments = [];
+          for (const segment of pathSegments) {
+            if (segment === '..') {
+              normalizedSegments.pop();
+            } else if (segment !== '.') {
+              normalizedSegments.push(segment);
+            }
+          }
 
-    // --- IPC Communication ---
-    // Handle incoming data from the main process PTY and write to terminal
-    window.electronAPI.pty.onData((data) => {
-      term.write(data);
-    });
+          const targetDir = findItemByPath(files, normalizedSegments);
+          if (targetDir && targetDir.type === 'folder') {
+            setCurrentPath(normalizedSegments);
+          } else {
+            newHistory.push(`cd: no such file or directory: ${targetPath}`);
+          }
+        }
+        break;
+      case 'pwd':
+        const fullPath = [basePath, ...currentPath].join('/');
+        newHistory.push(fullPath);
+        break;
+      case 'clear':
+        setHistory([]);
+        return;
+      case 'echo':
+        newHistory.push(args.join(' '));
+        break;
+      case '':
+        break;
+      default:
+        newHistory.push(`Comando não encontrado: ${cmd}. Digite "help" para ajuda.`);
+        break;
+    }
+    setHistory(newHistory);
+  };
 
-    // Handle user input in the terminal and send to the main process PTY
-    const onDataDisposable = term.onData((data) => {
-      window.electronAPI.writeToPty(data);
-    });
-    
-    // --- Resizing Logic ---
-    const resizeObserver = new ResizeObserver(() => {
-      try {
-        fitAddon.fit();
-      } catch (err) {
-        console.error("Error fitting terminal on resize:", err);
-      }
-    });
-    
-    resizeObserver.observe(terminalRef.current);
-    
-    const onResizeDisposable = term.onResize(({ cols, rows }) => {
-      window.electronAPI.resizePty({ cols, rows });
-    });
-    
-    // Initial resize
-    window.electronAPI.resizePty({ cols: term.cols, rows: term.rows });
+  const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && input.trim().length >= 0) {
+      handleCommand(input);
+      setInput('');
+    }
+  };
+  
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
-
-    // --- Cleanup ---
-    return () => {
-      onDataDisposable.dispose();
-      onResizeDisposable.dispose();
-      term.dispose();
-      fitAddon.dispose();
-      resizeObserver.disconnect();
-      // Important: Remove listeners to prevent memory leaks on component re-mount
-      if (window.electronAPI && typeof window.electronAPI.removeAllListeners === 'function') {
-         window.electronAPI.removeAllListeners();
-      }
-    };
-  }, [theme]); // Rerun effect if theme changes
-
-  return <div ref={terminalRef} className="h-full w-full" />;
+  return (
+    <div className="h-full w-full bg-card text-foreground flex flex-col p-2 font-code text-sm" onClick={() => inputRef.current?.focus()}>
+      <ScrollArea className="flex-1" ref={scrollAreaRef}>
+        <div className="p-2">
+          {history.map((line, index) => (
+            <div key={index} className="whitespace-pre-wrap break-words">{line}</div>
+          ))}
+        </div>
+      </ScrollArea>
+      <div className="flex items-center">
+        <span className="text-muted-foreground mr-2">{`${[basePath, ...currentPath].join('/')}$`}</span>
+        <Input
+          ref={inputRef}
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyPress}
+          className="w-full bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 h-8 p-0"
+          autoComplete="off"
+          spellCheck="false"
+        />
+      </div>
+    </div>
+  );
 }
