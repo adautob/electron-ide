@@ -22,7 +22,9 @@ if (process.env.OPENROUTER_API_KEY) {
       // This mapper removes our internal routing prefix ('openrouter/')
       // before sending the model name to the OpenRouter API.
       modelMapper: (model: ModelReference<any>) => {
-        return model.name.replace(/^openrouter\//, '');
+        // The model reference can be a string, so we handle that case.
+        const name = typeof model === 'string' ? model : model.name;
+        return name.replace(/^openrouter\//, '');
       },
     })
   );
