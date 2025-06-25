@@ -1,4 +1,3 @@
-'use server';
 
 import {genkit, type ModelReference, type Plugin} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
