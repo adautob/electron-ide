@@ -51,7 +51,7 @@ Este é um protótipo de um IDE desktop construído com Next.js, ShadCN UI, Tail
         ```env
         GOOGLE_API_KEY=SUA_CHAVE_DE_API_AQUI
         ```
-    *   **Nota:** Obtenha sua chave de API no [Google Cloud Console](https://console.cloud.google.com/). Certifique-se de que a "Generative Language API" (ou Vertex AI API) esteja ativada para o seu projeto.
+    *   **Nota:** Obtenha sua chave de API no [Google AI Studio](https://aistudio.google.com/app/apikey).
 
     **Importante:** O arquivo `.env.local` é ignorado pelo Git para proteger suas chaves.
 

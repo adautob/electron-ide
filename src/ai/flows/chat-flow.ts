@@ -38,6 +38,8 @@ export async function chatWithAI(input: ChatInput): Promise<ChatOutput> {
   return chatFlow(input);
 }
 
+// Note: No model is specified here. It will use the default model configured in `src/ai/genkit.ts`.
+// This makes the chat flow automatically compatible with either Google AI or OpenRouter.
 const chatPrompt = ai.definePrompt({
   name: 'ideChatPrompt',
   input: { schema: ChatInputSchema },

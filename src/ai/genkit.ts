@@ -1,42 +1,24 @@
+
 import {genkit, type Plugin} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
-import {openAI} from '@genkit-ai/openai';
 
 // This list will hold the configured AI plugins.
 const plugins: Plugin<any>[] = [];
 
 // The default model will be determined based on the available API keys.
-let defaultModel: string;
+let defaultModel: string | undefined;
 
-// Prioritize OpenRouter if the API key is provided.
-if (process.env.OPENROUTER_API_KEY) {
-  // Use a sensible default model for OpenRouter, but allow it to be overridden.
-  const openRouterModel = process.env.OPENROUTER_MODEL_NAME || 'openai/gpt-4o';
-  
-  plugins.push(
-    openAI({
-      apiKey: process.env.OPENROUTER_API_KEY,
-      baseURL: 'https://openrouter.ai/api/v1',
-      defaultModel: openRouterModel,
-      // OpenRouter requires these headers to identify your app.
-      customHeaders: {
-        'HTTP-Referer': 'https://github.com/firebase/studio',
-        'X-Title': 'Electron IDE',
-      },
-    })
-  );
-  
-  defaultModel = openRouterModel;
-  console.log(`INFO: Using OpenRouter with model: ${defaultModel}`);
-
-} else if (process.env.GOOGLE_API_KEY) {
-  // Fallback to Google AI if an OpenRouter key is not found.
+// Use Google AI if the API key is provided.
+if (process.env.GOOGLE_API_KEY) {
   plugins.push(googleAI());
   defaultModel = 'googleai/gemini-2.0-flash';
   console.log(`INFO: Using Google AI with model: ${defaultModel}`);
 } else {
-  // Warn the user if no API keys are configured.
-  console.warn("WARN: No Genkit API key found (OPENROUTER_API_KEY or GOOGLE_API_KEY). AI features will not work.");
+  // Warn the user if no Google API key is configured.
+  // Also mention the removed OpenRouter key for clarity.
+  console.warn(
+    'WARN: No GOOGLE_API_KEY found. AI features will not work. Support for OpenRouter is temporarily disabled for debugging.'
+  );
   // Set a placeholder model to prevent crashes, although AI calls will fail.
   defaultModel = 'googleai/gemini-2.0-flash';
 }
