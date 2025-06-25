@@ -8,9 +8,10 @@ let defaultModel: string | undefined;
 
 // OpenRouter has priority if the API key is provided.
 if (process.env.OPENROUTER_API_KEY) {
-  const modelName = process.env.OPENROUTER_MODEL_NAME || 'openai/gpt-4o';
+  const modelName = process.env.OPENROUTER_MODEL_NAME || 'google/gemini-pro'; // A sensible default for OpenRouter
   plugins.push(
     openAI({
+      name: 'openrouter', // Give the plugin a unique name
       apiKey: process.env.OPENROUTER_API_KEY,
       baseURL: 'https://openrouter.ai/api/v1',
       // Pass headers to identify our app to OpenRouter
@@ -20,10 +21,9 @@ if (process.env.OPENROUTER_API_KEY) {
       },
     })
   );
-  // The 'openai/' prefix tells Genkit to use the openAI plugin we configured.
-  // The plugin then sends the model name (e.g., 'google/gemini-pro') to the OpenRouter API.
-  defaultModel = `openai/${modelName}`;
-  console.log(`INFO: Using OpenRouter with model: ${modelName}`);
+  // Prefix the model with our custom plugin name for Genkit routing.
+  defaultModel = `openrouter/${modelName}`;
+  console.log(`INFO: Using OpenRouter. Genkit model: ${defaultModel}`);
 
 } else if (process.env.GOOGLE_API_KEY) {
   plugins.push(googleAI());
