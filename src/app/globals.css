@@ -1,4 +1,7 @@
 
+/* Import Xterm CSS */
+@import '@xterm/xterm/css/xterm.css';
+
 /* Import PrismJS theme for syntax highlighting */
 @import 'prismjs/themes/prism-okaidia.css';
 
