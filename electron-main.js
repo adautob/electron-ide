@@ -2,12 +2,12 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const os = require('os');
-const pty = require('node-pty');
+// const pty = require('node-pty'); // Removed for simulated terminal
 
 let mainWindow;
 
-// Determine shell based on OS
-const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+// Determine shell based on OS - Not needed for simulated terminal
+// const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
 
 async function createWindow() {
   const { default: isDev } = await import('electron-is-dev');
@@ -30,29 +30,7 @@ async function createWindow() {
     mainWindow.webContents.openDevTools();
   }
 
-  // Terminal logic
-  const ptyProcess = pty.spawn(shell, [], {
-    name: 'xterm-color',
-    cols: 80,
-    rows: 30,
-    cwd: process.env.HOME,
-    env: process.env
-  });
-
-  // Send terminal data to renderer process
-  ptyProcess.on('data', function (data) {
-    mainWindow.webContents.send('terminal.incomingData', data);
-  });
-
-  // Handle user input from renderer process
-  ipcMain.on('terminal.keystroke', (event, key) => {
-    ptyProcess.write(key);
-  });
-
-  // Handle terminal resize from renderer process
-  ipcMain.on('terminal.resize', (event, { cols, rows }) => {
-    ptyProcess.resize(cols, rows);
-  });
+  // Terminal logic is now handled entirely in the renderer process
 }
 
 app.whenReady().then(async () => {

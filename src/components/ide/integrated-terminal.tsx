@@ -1,92 +1,137 @@
 "use client";
 
-import React, { useEffect, useRef } from 'react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/theme-provider';
 
+type OutputLine = {
+  id: number;
+  type: 'input' | 'output' | 'error';
+  content: string;
+};
+
 export function IntegratedTerminal() {
-  const terminalRef = useRef<HTMLDivElement>(null);
-  const term = useRef<Terminal | null>(null);
-  const fitAddon = useRef<FitAddon | null>(null);
   const { theme } = useTheme();
+  const [input, setInput] = useState('');
+  const [output, setOutput] = useState<OutputLine[]>([
+    { id: 0, type: 'output', content: 'Terminal Simulado. Digite "help" para ver os comandos disponíveis.' }
+  ]);
+  const [history, setHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (terminalRef.current && !term.current) {
-      // Create a new Terminal instance
-      term.current = new Terminal({
-        cursorBlink: true,
-        fontFamily: "'Source Code Pro', monospace",
-        fontSize: 14,
-        theme: {
-          background: theme === 'dark' ? '#2C3E50' : '#FFFFFF',
-          foreground: theme === 'dark' ? '#F8F8F2' : '#000000',
-          cursor: '#F8F8F2',
-          selectionBackground: '#44475A',
-        },
-      });
+  const executeCommand = (command: string) => {
+    const [cmd, ...args] = command.trim().split(' ');
+    let newOutput: string = '';
+    let type: 'output' | 'error' = 'output';
 
-      // Load addons
-      fitAddon.current = new FitAddon();
-      term.current.loadAddon(fitAddon.current);
+    switch (cmd) {
+      case 'help':
+        newOutput = 'Comandos disponíveis: help, clear, echo, ls, cd, pwd';
+        break;
+      case 'clear':
+        setOutput([]);
+        return; 
+      case 'echo':
+        newOutput = args.join(' ');
+        break;
+      case 'ls':
+        newOutput = 'package.json  src/  README.md  .gitignore';
+        break;
+      case 'cd':
+        newOutput = `cd: Funcionalidade não implementada neste terminal simulado.`;
+        type = 'error';
+        break;
+      case 'pwd':
+        newOutput = '/home/user/project';
+        break;
+      case '':
+        return; // No command, do nothing
+      default:
+        newOutput = `Comando não encontrado: ${cmd}. Digite "help" para ajuda.`;
+        type = 'error';
+        break;
+    }
+    
+    setOutput(prev => [...prev, { id: prev.length + 1, type, content: newOutput }]);
+  };
 
-      // Open the terminal in the div
-      term.current.open(terminalRef.current);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+  };
 
-      // Fit the terminal to the container size
-      fitAddon.current.fit();
-
-      // Send keystrokes from terminal to main process
-      term.current.onKey(({ key }) => {
-        window.electronAPI.sendToTerminal(key);
-      });
-
-      // Handle incoming data from main process (pty)
-      window.electronAPI.onTerminalData((data: string) => {
-        term.current?.write(data);
-      });
-
-      // Handle resize
-      const handleResize = () => {
-        if (fitAddon.current && term.current) {
-          fitAddon.current.fit();
-          window.electronAPI.resizeTerminal({
-            cols: term.current.cols,
-            rows: term.current.rows,
-          });
-        }
-      };
-
-      const resizeObserver = new ResizeObserver(handleResize);
-      if (terminalRef.current) {
-        resizeObserver.observe(terminalRef.current);
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && input.trim().length >= 0) {
+      const command = input.trim();
+      setOutput(prev => [...prev, { id: prev.length, type: 'input', content: `> ${command}` }]);
+      if (command) {
+        setHistory(prev => [command, ...prev].slice(0, 50));
       }
-      
-      // Initial resize
-      setTimeout(() => handleResize(), 200);
-
-      // Clean up on component unmount
-      return () => {
-        resizeObserver.disconnect();
-        window.electronAPI.removeAllListeners('terminal.incomingData');
-        term.current?.dispose();
-        term.current = null;
-      };
+      setHistoryIndex(-1);
+      executeCommand(command);
+      setInput('');
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (history.length > 0) {
+        const newIndex = Math.min(historyIndex + 1, history.length - 1);
+        setHistoryIndex(newIndex);
+        setInput(history[newIndex] || '');
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIndex >= 0) {
+        const newIndex = Math.max(historyIndex - 1, -1);
+        setHistoryIndex(newIndex);
+        setInput(history[newIndex] || '');
+      }
     }
-  }, [theme]); // Rerun effect if theme changes
+  };
 
   useEffect(() => {
-    // Update terminal theme when the app theme changes
-    if (term.current) {
-      term.current.options.theme = {
-        background: theme === 'dark' ? '#2C3E50' : '#FFFFFF',
-        foreground: theme === 'dark' ? '#F8F8F2' : '#000000',
-        cursor: theme === 'dark' ? '#F8F8F2' : '#000000',
-        selectionBackground: '#44475A',
-      };
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [theme]);
+  }, [output]);
 
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
 
-  return <div ref={terminalRef} className="h-full w-full bg-primary" />;
+  const terminalBg = theme === 'dark' ? 'hsl(var(--primary))' : '#FFFFFF';
+  const terminalFg = theme === 'dark' ? '#F8F8F2' : '#000000';
+  const inputColor = theme === 'dark' ? '#FFFFFF' : '#000000';
+  const promptColor = theme === 'dark' ? '#3498DB' : '#2980B9';
+
+  return (
+    <div
+      className="h-full w-full p-2 font-code text-sm flex flex-col"
+      style={{ backgroundColor: terminalBg, color: terminalFg }}
+      onClick={() => inputRef.current?.focus()}
+    >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        {output.map(line => (
+          <div key={line.id} className="whitespace-pre-wrap break-words">
+            {line.type === 'error' && <span className="text-red-400">{line.content}</span>}
+            {line.type !== 'error' && <span>{line.content}</span>}
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center">
+        <span style={{ color: promptColor }}>$&nbsp;</span>
+        <input
+          ref={inputRef}
+          type="text"
+          value={input}
+          onChange={handleInputChange}
+          onKeyDown={handleInputKeyDown}
+          className="bg-transparent border-none outline-none w-full flex-1"
+          style={{ color: inputColor, caretColor: inputColor }}
+          autoComplete="off"
+          spellCheck="false"
+        />
+      </div>
+    </div>
+  );
 }

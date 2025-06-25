@@ -13,11 +13,10 @@ export interface FileOrFolder {
 declare global {
   interface Window {
     showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
+    // electronAPI is now much simpler, or could be empty
     electronAPI: {
-      onTerminalData: (callback: (data: string) => void) => void;
-      sendToTerminal: (data: string) => void;
-      resizeTerminal: (size: { cols: number; rows: number }) => void;
-      removeAllListeners: (channel: 'terminal.incomingData') => void;
+      // No terminal methods needed for the simulated terminal.
+      // Keeping the object for potential future use.
     };
   }
 }
