@@ -2,9 +2,9 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { FileExplorer } from '@/components/ide/file-explorer';
 import { CodeEditor } from '@/components/ide/code-editor';
-import { IntegratedTerminal } from '@/components/ide/integrated-terminal';
 import { IdeHeader } from '@/components/ide/ide-header';
 import { PreferencesDialog } from '@/components/ide/preferences-dialog';
 import { TerminalResizableWrapper } from '@/components/ide/terminal-resizable-wrapper';
@@ -14,6 +14,15 @@ import type { FileOrFolder } from '@/types';
 import { generateCodeFromComment } from '@/ai/flows/ai-code-completion';
 import { aiCodeCompletionFromContext, type AICodeCompletionFromContextInput } from '@/ai/flows/ai-code-completion-from-context';
 import { useToast } from '@/hooks/use-toast';
+
+const DynamicIntegratedTerminal = dynamic(
+  () => import('@/components/ide/integrated-terminal').then(mod => mod.IntegratedTerminal),
+  { 
+    ssr: false,
+    loading: () => <div className="h-full w-full bg-primary p-2 font-code text-sm text-foreground">Carregando terminal...</div> 
+  }
+);
+
 
 // Helper function to find an item by path in a nested structure
 const findItemByPathRecursive = (items: FileOrFolder[], path: string): FileOrFolder | null => {
@@ -800,7 +809,7 @@ export default function IdePage() {
             fileName={activeFile?.name || (files.length === 0 && !openedDirectoryName ? "No file open" : (openedDirectoryName && !activeFile ? (openedDirectoryName.split('/').pop() || openedDirectoryName) : "Select a file"))}
           />
           <TerminalResizableWrapper initialHeight={220} minHeight={80} maxHeight={500}>
-            <IntegratedTerminal />
+            <DynamicIntegratedTerminal />
           </TerminalResizableWrapper>
         </div>
         <AiChatPanel 
