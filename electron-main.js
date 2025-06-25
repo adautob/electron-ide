@@ -1,6 +1,7 @@
 // electron-main.js
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const os = require('os');
 
 async function createWindow() {
   const { default: isDev } = await import('electron-is-dev');
