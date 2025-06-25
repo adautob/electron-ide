@@ -14,8 +14,10 @@ declare global {
   interface Window {
     showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
     electronAPI: {
-      // This is now empty as the terminal is simulated.
-      // Other APIs can be added here in the future.
+      onTerminalData: (callback: (data: string) => void) => void;
+      sendToTerminal: (data: string) => void;
+      resizeTerminal: (size: { cols: number; rows: number }) => void;
+      removeAllListeners: (channel: 'terminal.incomingData') => void;
     };
   }
 }

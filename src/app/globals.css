@@ -2,6 +2,9 @@
 /* Import PrismJS theme for syntax highlighting */
 @import 'prismjs/themes/prism-okaidia.css';
 
+/* Import Xterm.js theme */
+@import '@xterm/xterm/css/xterm.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -188,4 +191,9 @@ html[data-theme="light"] .token.cdata {
 /* Adjust the textarea's padding to align the caret with the code */
 .code-editor-instance .line-numbers-textarea {
   padding-left: 4.5em !important;
+}
+
+/* --- STYLES FOR XTERM.JS --- */
+.xterm .xterm-viewport {
+  background-color: hsl(var(--primary)) !important;
 }
