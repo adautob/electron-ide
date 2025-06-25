@@ -1,30 +1,41 @@
 
 import {genkit, type Plugin} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
+import {openAI} from 'genkitx-openai';
 
 const plugins: Plugin<any>[] = [];
 let defaultModel: string | undefined;
 
-// NOTE: OpenRouter integration is temporarily disabled to resolve a blocking
-// installation issue. We are defaulting to Google AI for now.
-if (process.env.GOOGLE_API_KEY) {
+// OpenRouter has priority if the API key is provided.
+if (process.env.OPENROUTER_API_KEY) {
+  const modelName = process.env.OPENROUTER_MODEL_NAME || 'openai/gpt-4o';
+  plugins.push(
+    openAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1',
+      // Pass headers to identify our app to OpenRouter
+      defaultHeaders: {
+        'HTTP-Referer': 'https://github.com/firebase/genkit-samples',
+        'X-Title': 'Electron IDE',
+      },
+    })
+  );
+  // The 'openai/' prefix tells Genkit to use the openAI plugin we configured.
+  // The plugin then sends the model name (e.g., 'google/gemini-pro') to the OpenRouter API.
+  defaultModel = `openai/${modelName}`;
+  console.log(`INFO: Using OpenRouter with model: ${modelName}`);
+
+} else if (process.env.GOOGLE_API_KEY) {
   plugins.push(googleAI());
   defaultModel = 'googleai/gemini-2.0-flash';
   console.log(`INFO: Using Google AI with model: ${defaultModel}`);
-} else if (process.env.OPENROUTER_API_KEY) {
+
+} else {
   console.warn(
-    'WARN: OPENROUTER_API_KEY is set, but the integration is temporarily disabled to fix a stability issue. Falling back to Google AI. Set GOOGLE_API_KEY to use AI features.'
+    'WARN: No OPENROUTER_API_KEY or GOOGLE_API_KEY found. AI features will not work.'
   );
-  // Still need a fallback even if it won't work without a key
+  // Set a placeholder to prevent crashes, although AI calls will fail.
   plugins.push(googleAI());
-  defaultModel = 'googleai/gemini-2.0-flash';
-}
-// If no keys are found, warn the user.
-else {
-  console.warn(
-    'WARN: No GOOGLE_API_KEY found. AI features will not work.'
-  );
-  // Set a placeholder model to prevent crashes, although AI calls will fail.
   defaultModel = 'googleai/gemini-2.0-flash';
 }
 
