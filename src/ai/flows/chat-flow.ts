@@ -39,7 +39,7 @@ export async function chatWithAI(input: ChatInput): Promise<ChatOutput> {
 }
 
 // Note: This Genkit prompt is now only used if the OPENROUTER_API_KEY is not set.
-// The main logic in chatFlow will bypass this and use openrouter-kit directly.
+// The main logic in chatFlow will bypass this and use the OpenAI SDK directly.
 const chatPrompt = ai.definePrompt({
   name: 'ideChatPrompt',
   input: { schema: ChatInputSchema },
@@ -159,7 +159,24 @@ const chatFlow = ai.defineFlow(
         -   Conteúdo: O conteúdo completo e final do arquivo.
         -   Fim do bloco: \`[END_FILE]\`
         -   **REGRA CRÍTICA:** O conteúdo dentro de \`[START_FILE]\` **NUNCA** deve ser envolvido por crases (\`\`\`).
-        -   **Para múltiplos arquivos,** gere um bloco \`[START_FILE]...[END_FILE]\` para cada arquivo, um após o outro.`;
+        -   **Para múltiplos arquivos,** gere um bloco \`[START_FILE]...[END_FILE]\` para cada arquivo, um após o outro.
+
+**Exemplo de Resposta CORRETA para modificação:**
+Certo, vou criar o componente \`Login.jsx\` e seu CSS.
+
+[START_FILE:src/Login.css]
+.form { padding: 1em; }
+[END_FILE]
+
+[START_FILE:src/Login.jsx]
+import './Login.css';
+export default function Login() { return <form className="form"></form>; }
+[END_FILE]
+
+**RELEMBRE-SE ANTES DE RESPONDER:**
+- Sua primeira tarefa é decidir: CONVERSA ou MODIFICAÇÃO?
+- Se for MODIFICAÇÃO: O resumo NUNCA tem código. O código vai SOMENTE dentro dos blocos \`[START_FILE]\`.
+- Se for CONVERSA: Responda normalmente.`;
 
         if (input.selectedPath) {
           systemPrompt += `\n\n---\n**CONTEXTO ATUAL DO USUÁRIO:**\nO usuário tem o seguinte arquivo/pasta selecionado no momento: \`${input.selectedPath}\`. Use isso como uma dica de onde criar novos arquivos.\n---`;
@@ -208,3 +225,5 @@ const chatFlow = ai.defineFlow(
     }
   }
 );
+
+    
