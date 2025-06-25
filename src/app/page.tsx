@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -137,13 +138,13 @@ export default function IdePage() {
           setEditorContent(text);
           // Update content in the main files state
           setFiles(prevFiles => {
-            const updateContentRecursive = (items: FileOrFolder[]): FileOrFolder[] =>
+            const updateChildrenRecursive = (items: FileOrFolder[]): FileOrFolder[] =>
               items.map(item => {
                 if (item.id === file.id) return { ...item, content: text };
-                if (item.children) return { ...item, children: updateContentRecursive(item.children) };
+                if (item.children) return { ...item, children: updateChildrenRecursive(item.children) };
                 return item;
               });
-            return updateContentRecursive(prevFiles);
+            return updateChildrenRecursive(prevFiles);
           });
         } catch (error) {
           console.error("Error reading file:", error);
@@ -799,10 +800,7 @@ export default function IdePage() {
             fileName={activeFile?.name || (files.length === 0 && !openedDirectoryName ? "No file open" : (openedDirectoryName && !activeFile ? (openedDirectoryName.split('/').pop() || openedDirectoryName) : "Select a file"))}
           />
           <TerminalResizableWrapper initialHeight={220} minHeight={80} maxHeight={500}>
-            <IntegratedTerminal 
-              files={files}
-              openedDirectoryName={openedDirectoryName}
-            />
+            <IntegratedTerminal allFiles={files} openedDirectoryName={openedDirectoryName} />
           </TerminalResizableWrapper>
         </div>
         <AiChatPanel 

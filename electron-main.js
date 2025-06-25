@@ -3,7 +3,6 @@ const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
 async function createWindow() {
-  // Dynamically import electron-is-dev
   const { default: isDev } = await import('electron-is-dev');
 
   const win = new BrowserWindow({
@@ -17,9 +16,7 @@ async function createWindow() {
     icon: path.join(__dirname, 'public/favicon.ico')
   });
 
-  // Electron will always load from the Next.js server (dev or prod) on port 9002
   const startUrl = 'http://localhost:9002';
-
   win.loadURL(startUrl);
 
   if (isDev) {

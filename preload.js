@@ -1,6 +1,2 @@
-// preload.js
-// This file is no longer used by electron-main.js for the simulated terminal,
-// but it is kept here in case it's needed for other future Electron main-process interactions.
-const { contextBridge } = require('electron');
-
-contextBridge.exposeInMainWorld('electron', {});
+// This file is no longer needed for the simulated terminal as there's no backend process to communicate with.
+// It is kept empty to avoid breaking any potential references, though the reference in electron-main.js has been removed.

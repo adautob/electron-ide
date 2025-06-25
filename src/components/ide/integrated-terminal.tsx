@@ -1,221 +1,163 @@
+
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { FileOrFolder } from '@/types';
+import React, { useState, useEffect, useRef } from 'react';
 
-interface TerminalOutput {
-  type: 'input' | 'output' | 'error';
-  content: string;
-}
+const HELP_MESSAGE = `Simulated Shell. Available commands:
+- ls [-a]: List files in the current directory. -a shows hidden files.
+- cd [dir]: Change directory. Use '..' to go up.
+- pwd: Print working directory.
+- cat [file]: Display content of a file.
+- clear: Clear the terminal screen.
+- help: Show this help message.
+- echo [...args]: Print arguments to the console.
+`;
 
-interface IntegratedTerminalProps {
-  files: FileOrFolder[];
+const findItemByPath = (items: FileOrFolder[], path: string): FileOrFolder | null => {
+  for (const item of items) {
+    if (item.path === path) return item;
+    if (item.children) {
+      const found = findItemByPath(item.children, path);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+interface SimulatedTerminalProps {
+  allFiles: FileOrFolder[];
   openedDirectoryName: string | null;
 }
 
-export function IntegratedTerminal({ files, openedDirectoryName }: IntegratedTerminalProps) {
-  const [output, setOutput] = useState<TerminalOutput[]>([]);
-  const [input, setInput] = useState('');
-  const [history, setHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [currentDir, setCurrentDir] = useState<string>('/');
-
+export function IntegratedTerminal({ allFiles, openedDirectoryName }: SimulatedTerminalProps) {
+  const [history, setHistory] = useState<string[]>(['Electron IDE Simulated Terminal. Type "help" for commands.']);
+  const [currentLine, setCurrentLine] = useState('');
+  const [cwd, setCwd] = useState(openedDirectoryName || '/');
+  const endOfTerminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  
-  const getPrompt = () => `user@electron-ide:${currentDir}$`;
-  const welcomeMessage = "Simulated Terminal. Type 'help' for available commands.";
-
-  // Function to add a new line to output and scroll down
-  const addOutput = useCallback((newOutput: TerminalOutput) => {
-    setOutput(prev => [...prev, newOutput]);
-  }, []);
 
   useEffect(() => {
-    if (openedDirectoryName) {
-      setCurrentDir(`/${openedDirectoryName}`);
-    } else {
-      setCurrentDir('/');
-    }
-    // Clear terminal on folder change
-    setOutput([{ type: 'output', content: welcomeMessage }]);
+    setCwd(openedDirectoryName || '/');
+    setHistory(['Electron IDE Simulated Terminal. Type "help" for commands.']);
   }, [openedDirectoryName]);
 
-
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [output]);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const findItemByPath = (path: string, searchRoot: FileOrFolder[]): FileOrFolder | null => {
-    const segments = path.split('/').filter(Boolean);
-    if (openedDirectoryName) {
-      // If path starts with the root dir name, remove it
-      if (segments[0] === openedDirectoryName) {
-        segments.shift();
-      }
-    }
-
-    let currentLevel = searchRoot;
-    let foundItem: FileOrFolder | null = null;
-    
-    for (const segment of segments) {
-        const item = currentLevel.find(i => i.name === segment);
-        if (item) {
-            foundItem = item;
-            if (item.type === 'folder' && item.children) {
-                currentLevel = item.children;
-            } else if (segments.indexOf(segment) < segments.length - 1) {
-                // It's a file but there are more path segments
-                return null; 
-            }
-        } else {
-            return null; // Segment not found
-        }
-    }
-    return foundItem;
-};
-
+    endOfTerminalRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [history]);
+  
+  const focusInput = () => inputRef.current?.focus();
 
   const processCommand = (command: string) => {
-    const [cmd, ...args] = command.trim().split(' ');
-    addOutput({ type: 'input', content: `${getPrompt()} ${command}` });
+    const [cmd, ...args] = command.trim().split(' ').filter(Boolean);
+    let output = '';
 
-    if (command.trim() === '') return;
+    if (!openedDirectoryName) {
+      return `Error: No folder is currently open.`;
+    }
+
+    const currentDirectoryNode = findItemByPath(allFiles, cwd);
 
     switch (cmd) {
       case 'help':
-        addOutput({ type: 'output', content: 'Available commands: help, clear, ls, cd, pwd, echo' });
-        break;
-      case 'clear':
-        setOutput([]);
+        output = HELP_MESSAGE;
         break;
       case 'pwd':
-        addOutput({ type: 'output', content: currentDir });
+        output = cwd;
         break;
+      case 'clear':
+        setHistory([]);
+        return;
       case 'echo':
-        addOutput({ type: 'output', content: args.join(' ') });
+        output = args.join(' ');
         break;
       case 'ls':
-        if (!openedDirectoryName) {
-            addOutput({ type: 'error', content: 'No directory opened.' });
-            return;
-        }
-
-        let targetPath = currentDir.substring(1); // remove leading '/'
-        if (targetPath === openedDirectoryName) targetPath = '';
-
-        const currentFolder = targetPath === '' ? { children: files } : findItemByPath(targetPath, files);
-        if (currentFolder && currentFolder.children) {
-            const list = currentFolder.children.map(item => `${item.name}${item.type === 'folder' ? '/' : ''}`).join('\n');
-            addOutput({ type: 'output', content: list || 'Empty directory' });
+        if (!currentDirectoryNode || currentDirectoryNode.type !== 'folder') {
+          output = 'Error: Current path is not a directory.';
         } else {
-            addOutput({ type: 'error', content: `ls: cannot access '${args[0] || '.'}': No such file or directory` });
+          const showAll = args.includes('-a');
+          const children = currentDirectoryNode.children || [];
+          output = children
+            .filter(item => showAll || !item.name.startsWith('.'))
+            .map(item => `${item.type === 'folder' ? 'd' : '-'} ${item.name}`)
+            .join('\n');
         }
         break;
       case 'cd':
-        const target = args[0] || '';
-        if (!openedDirectoryName) {
-            addOutput({ type: 'error', content: 'No directory opened.' });
-            return;
-        }
-
-        if (target === '' || target === '/') {
-            setCurrentDir(`/${openedDirectoryName}`);
-            return;
-        }
-
-        if (target === '..') {
-            const parts = currentDir.split('/').filter(Boolean);
-            if (parts.length > 1) { // Can't go above root
-                parts.pop();
-                setCurrentDir(`/${parts.join('/')}`);
-            }
-            return;
-        }
-
-        const newPath = (currentDir === '/' ? '' : currentDir) + '/' + target;
-        const normalizedNewPath = newPath.replace(/\/+/g, '/');
-
-        const destination = findItemByPath(normalizedNewPath.substring(1), files);
-        
-        if (destination && destination.type === 'folder') {
-            setCurrentDir(normalizedNewPath);
+        const targetDir = args[0];
+        if (!targetDir) {
+          output = 'Usage: cd [directory]';
+        } else if (targetDir === '..') {
+          if (cwd === openedDirectoryName) {
+            output = 'Error: Already at the root directory.';
+          } else {
+            const newCwd = cwd.substring(0, cwd.lastIndexOf('/'));
+            setCwd(newCwd || openedDirectoryName);
+          }
         } else {
-            addOutput({ type: 'error', content: `cd: no such file or directory: ${target}` });
+          const newPath = `${cwd}/${targetDir}`;
+          const targetNode = findItemByPath(allFiles, newPath);
+          if (targetNode && targetNode.type === 'folder') {
+            setCwd(newPath);
+          } else {
+            output = `Error: Directory not found: ${targetDir}`;
+          }
+        }
+        break;
+      case 'cat':
+        const targetFile = args[0];
+        if (!targetFile) {
+            output = 'Usage: cat [file]';
+        } else {
+            const filePath = `${cwd}/${targetFile}`;
+            const fileNode = findItemByPath(allFiles, filePath);
+            if (fileNode && fileNode.type === 'file') {
+                if (fileNode.content !== undefined && fileNode.content !== null) {
+                    output = fileNode.content;
+                } else {
+                    output = `Error: File content for ${targetFile} is not loaded. Please open it in the editor first.`;
+                }
+            } else {
+                output = `Error: File not found or is a directory: ${targetFile}`;
+            }
         }
         break;
       default:
-        addOutput({ type: 'error', content: `${cmd}: command not found` });
+        if (cmd) output = `Command not found: ${cmd}`;
+        break;
     }
+    setHistory(h => [...h, `$ ${command}`, ...(output ? [output] : [])]);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(e.target.value);
-  };
-
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      if (input.trim()) {
-        setHistory(prev => [input, ...prev]);
-      }
-      setHistoryIndex(-1);
-      processCommand(input);
-      setInput('');
-    } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (history.length > 0) {
-        const newIndex = Math.min(historyIndex + 1, history.length - 1);
-        setHistoryIndex(newIndex);
-        setInput(history[newIndex]);
-      }
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (historyIndex >= 0) {
-        const newIndex = Math.max(historyIndex - 1, -1);
-        setHistoryIndex(newIndex);
-        setInput(newIndex === -1 ? '' : history[newIndex]);
-      }
-    } else if (e.key === 'Tab') {
-        e.preventDefault();
-        // Basic autocomplete logic
+      processCommand(currentLine);
+      setCurrentLine('');
     }
-  };
-
-  const handleClick = () => {
-    inputRef.current?.focus();
   };
 
   return (
     <div
-      className="h-full w-full bg-[#1e1e1e] text-[#d4d4d4] font-code text-sm p-2 overflow-y-auto"
-      onClick={handleClick}
-      ref={scrollRef}
+      className="h-full w-full bg-[#1e1e1e] text-white font-code text-sm p-3 overflow-y-auto"
+      onClick={focusInput}
     >
-      <div>{welcomeMessage}</div>
-      {output.map((line, index) => (
-        <div key={index} className={line.type === 'error' ? 'text-red-500' : ''}>
-          <pre className="whitespace-pre-wrap">{line.content}</pre>
-        </div>
+      {history.map((line, index) => (
+        <pre key={index} className="whitespace-pre-wrap break-words">{line}</pre>
       ))}
       <div className="flex">
-        <span className="text-green-400">{getPrompt()}&nbsp;</span>
+        <span className="shrink-0">$ </span>
         <input
           ref={inputRef}
           type="text"
-          value={input}
-          onChange={handleInputChange}
-          onKeyDown={handleInputKeyDown}
-          className="bg-transparent border-none outline-none text-inherit flex-1 p-0"
+          value={currentLine}
+          onChange={(e) => setCurrentLine(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="bg-transparent border-none text-white focus:outline-none w-full pl-2"
           autoFocus
-          spellCheck="false"
         />
       </div>
+      <div ref={endOfTerminalRef} />
     </div>
   );
 }
