@@ -14,7 +14,7 @@ declare global {
   interface Window {
     showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
     electronAPI: {
-      // No terminal-specific methods are defined for the simulated terminal.
+      // Terminal methods are removed as they are not needed for the simulated terminal.
     };
   }
 }

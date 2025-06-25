@@ -1,14 +1,11 @@
 // electron-main.js
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const os = require('os');
-
-let mainWindow;
 
 async function createWindow() {
   const { default: isDev } = await import('electron-is-dev');
 
-  mainWindow = new BrowserWindow({
+  const mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     webPreferences: {
@@ -27,9 +24,7 @@ async function createWindow() {
   }
 }
 
-app.whenReady().then(async () => {
-  await createWindow();
-});
+app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
