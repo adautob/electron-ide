@@ -39,42 +39,16 @@ const getParentPath = (itemPath: string | null): string | null => {
   return itemPath.substring(0, itemPath.lastIndexOf('/'));
 };
 
-const KNOWN_COMMANDS = ['help', 'ls', 'cd', 'mkdir', 'touch', 'cat', 'mv', 'rm', 'clear'] as const;
-type CommandName = typeof KNOWN_COMMANDS[number];
-const COMMANDS_TAKING_ARGS: CommandName[] = ['cd', 'mkdir', 'touch', 'cat', 'mv', 'rm', 'ls'];
-
-
 export default function IdePage() {
   const [files, setFiles] = useState<FileOrFolder[]>([]);
   const [activeFile, setActiveFile] = useState<FileOrFolder | null>(null);
   const [editorContent, setEditorContent] = useState<string>('');
-  const [terminalOutput, setTerminalOutput] = useState<string[]>(['Welcome to Electron IDE Terminal! Type "help" for available commands.']);
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [openedDirectoryName, setOpenedDirectoryName] = useState<string | null>(null);
   const [rootDirectoryHandle, setRootDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const { toast } = useToast();
 
-  const [terminalCwdPath, setTerminalCwdPath] = useState<string | null>(null); // null for root of opened folder
-
-  const getTerminalPromptDisplay = useCallback(() => {
-    if (!openedDirectoryName) return '$';
-
-    const basePromptName = openedDirectoryName.split('/').pop() || openedDirectoryName;
-
-    if (terminalCwdPath === null) {
-      return `${basePromptName} $`;
-    }
-
-    const relativeCwdPath = terminalCwdPath.startsWith(openedDirectoryName + '/')
-      ? terminalCwdPath.substring(openedDirectoryName.length + 1)
-      : (terminalCwdPath === openedDirectoryName ? '' : terminalCwdPath);
-
-    const displayPath = relativeCwdPath ? `${basePromptName}/${relativeCwdPath}` : basePromptName;
-    const lastSegment = displayPath.split('/').pop() || basePromptName;
-
-    return `${lastSegment} $`;
-  }, [openedDirectoryName, terminalCwdPath]);
-
+  const [terminalCwd, setTerminalCwd] = useState<string | undefined>(undefined);
 
   const processDirectory = async (directoryHandle: FileSystemDirectoryHandle, currentPath: string = ''): Promise<FileOrFolder[]> => {
     const entries: FileOrFolder[] = [];
@@ -121,7 +95,6 @@ export default function IdePage() {
       }
       const directoryHandle = await window.showDirectoryPicker();
       
-      // Request read-write permissions upfront to allow AI to modify files later
       const options = { mode: 'readwrite' } as const;
       const permissionStatus = await directoryHandle.queryPermission(options);
 
@@ -133,7 +106,6 @@ export default function IdePage() {
              title: "Permissão Negada",
              description: "A IA não poderá modificar ou criar arquivos. As funcionalidades de escrita estão desativadas.",
            });
-          // We can still proceed with read-only access, so no 'return' here.
         }
       }
 
@@ -143,9 +115,16 @@ export default function IdePage() {
       setActiveFile(null);
       setEditorContent('');
       setOpenedDirectoryName(directoryHandle.name);
-      setTerminalCwdPath(null);
-      setTerminalOutput([`Folder "${directoryHandle.name}" opened. Type "help" for available commands.`]);
-      toast({ title: "Pasta Aberta", description: `Folder "${directoryHandle.name}" loaded.` });
+      
+      // IMPORTANT: Cannot get the real OS path from a FileSystemDirectoryHandle for security reasons.
+      // The terminal will spawn in the user's home directory by default.
+      // We are passing the directory *name* as the CWD, but this is a limitation.
+      // A more robust solution would require a different method of folder selection.
+      // For now, we will just spawn a new terminal in the default location.
+      window.electron.ptySpawn({ cwd: undefined }); // Let main process decide CWD
+      setTerminalCwd(directoryHandle.name); // For display/context purposes only.
+
+      toast({ title: "Pasta Aberta", description: `Folder "${directoryHandle.name}" loaded. Terminal reset.` });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         console.log("Folder selection cancelled by user.");
@@ -584,413 +563,6 @@ export default function IdePage() {
     }
   };
 
-
-  const handleCommandSubmit = useCallback(async (command: string) => {
-    if (!command.trim()) return;
-
-    const currentPrompt = getTerminalPromptDisplay();
-    setTerminalOutput(prev => [...prev, `${currentPrompt} ${command}`]);
-
-    const parts = command.trim().split(/\s+/);
-    const cmd = parts[0]?.toLowerCase();
-    const rawArgs = parts.slice(1);
-
-    let newOutputLines: string[] = [];
-
-    if (!openedDirectoryName && cmd !== 'clear' && cmd !== 'help') {
-        newOutputLines.push('No folder open. Use the "Open Folder" button in the header.');
-        setTerminalOutput(prev => [...prev, ...newOutputLines, `${getTerminalPromptDisplay()} `]); // Re-add prompt after message
-        return;
-    }
-
-    switch (cmd) {
-      case 'help':
-        newOutputLines.push('Available commands:');
-        newOutputLines.push('  help                   - Show this help message.');
-        newOutputLines.push('  ls                     - List directory contents.');
-        newOutputLines.push('  cd <directory>         - Change current directory.');
-        newOutputLines.push('  cd ..                  - Go to parent directory.');
-        newOutputLines.push('  cd ~ or cd /           - Go to root of opened folder.');
-        newOutputLines.push('  mkdir <name>           - Create a new directory.');
-        newOutputLines.push('  touch <name>           - Create a new empty file.');
-        newOutputLines.push('  cat <filename>         - Display file content.');
-        newOutputLines.push('  mv <oldname> <newname> - Rename a file or folder (within CWD, oldname cannot have spaces).');
-        newOutputLines.push('  rm <file>              - Delete a file.');
-        newOutputLines.push('  rm -rf <folder>        - Delete a folder and its contents.');
-        newOutputLines.push('  clear                  - Clear the terminal screen.');
-        break;
-      case 'ls': {
-        const dirToListPath = terminalCwdPath === null ? openedDirectoryName : terminalCwdPath;
-        let itemsToList: FileOrFolder[] = [];
-
-        if (!dirToListPath) {
-            newOutputLines.push(`ls: cannot access current directory: Not specified`);
-            break;
-        }
-
-        if (dirToListPath === openedDirectoryName) {
-            itemsToList = files;
-        } else {
-            const cwdItem = findItemByPathRecursive(files, dirToListPath);
-            if (cwdItem && cwdItem.type === 'folder' && cwdItem.children) {
-                itemsToList = cwdItem.children;
-            } else {
-                newOutputLines.push(`ls: cannot access '${dirToListPath.substring(dirToListPath.lastIndexOf('/') + 1)}': Directory not found or not a folder`);
-                break;
-            }
-        }
-        if (itemsToList.length === 0) {
-          newOutputLines.push('(empty)');
-        } else {
-          newOutputLines.push(...itemsToList.map(item => `${item.name}${item.type === 'folder' ? '/' : ''}`));
-        }
-        break;
-      }
-      case 'cd': {
-        if (!openedDirectoryName) break;
-        const targetDirName = rawArgs.join(' ');
-        if (rawArgs.length === 0 || targetDirName === '~' || targetDirName === '/') {
-          setTerminalCwdPath(null);
-          newOutputLines.push(`Navigating to: ${openedDirectoryName.split('/').pop() || '~'}`);
-          break;
-        }
-        
-        if (targetDirName === '..') {
-          if (terminalCwdPath === null) {
-            newOutputLines.push(`Already at ${openedDirectoryName.split('/').pop() || '~'}.`);
-          } else {
-            const parentPath = getParentPath(terminalCwdPath);
-            if (parentPath === openedDirectoryName || parentPath === null || (openedDirectoryName && terminalCwdPath === openedDirectoryName + '/' + terminalCwdPath.split('/').pop())) {
-                setTerminalCwdPath(null);
-                newOutputLines.push(`Navigating to: ${openedDirectoryName.split('/').pop() || '~'}`);
-            } else if (parentPath && parentPath.startsWith(openedDirectoryName)) {
-                setTerminalCwdPath(parentPath);
-                newOutputLines.push(`Navigating to: ${parentPath.substring(parentPath.lastIndexOf('/') + 1)}`);
-            } else {
-                setTerminalCwdPath(null); // Fallback to root if parent path is strange
-                newOutputLines.push(`Navigating to: ${openedDirectoryName.split('/').pop() || '~'} (parent unclear)`);
-            }
-          }
-        } else {
-          const baseDirForSearch = terminalCwdPath === null ? openedDirectoryName : terminalCwdPath;
-          if (!baseDirForSearch) break;
-
-          const currentDirItem = findItemByPathRecursive(files, baseDirForSearch);
-          const currentDirChildren = terminalCwdPath === null ? files : (currentDirItem?.children || []);
-
-          const targetItem = currentDirChildren.find(item => item.name === targetDirName && item.type === 'folder');
-          if (targetItem) {
-            setTerminalCwdPath(targetItem.path);
-            newOutputLines.push(`Navigating to: ${targetItem.name}`);
-          } else {
-            const searchLocationName = baseDirForSearch === openedDirectoryName ? (openedDirectoryName.split('/').pop() || '~') : baseDirForSearch.substring(baseDirForSearch.lastIndexOf('/')+1);
-            newOutputLines.push(`cd: ${targetDirName}: Directory not found in '${searchLocationName}'.`);
-          }
-        }
-        break;
-      }
-      case 'mkdir':
-      case 'touch': {
-        if (rawArgs.length === 0) {
-          newOutputLines.push(`${cmd}: missing operand`);
-          newOutputLines.push(`Try: ${cmd} <name>`);
-          break;
-        }
-        const itemName = rawArgs.join(' ');
-        const success = await handleCreateFileSystemItemInternal(cmd === 'mkdir' ? 'folder' : 'file', itemName, terminalCwdPath);
-        if (success) {
-            // Message already shown by toast
-        }
-        break;
-      }
-      case 'cat': {
-        if (!openedDirectoryName) {
-            newOutputLines.push('cat: No folder open.');
-            break;
-        }
-        if (rawArgs.length === 0) {
-            newOutputLines.push('cat: missing filename');
-            break;
-        }
-        const fileName = rawArgs.join(' ');
-        const baseReadPath = terminalCwdPath || openedDirectoryName;
-        const fullPathToRead = fileName.startsWith(openedDirectoryName + '/') || fileName.includes('/')
-            ? (fileName.startsWith('/') ? openedDirectoryName + fileName : fileName) // Handle absolute-like paths from root
-            : `${baseReadPath}/${fileName}`;
-
-
-        const itemToRead = findItemByPathRecursive(files, fullPathToRead);
-
-        if (!itemToRead) {
-            newOutputLines.push(`cat: ${fileName}: No such file or directory`);
-            break;
-        }
-        if (itemToRead.type === 'folder') {
-            newOutputLines.push(`cat: ${fileName}: Is a directory`);
-            break;
-        }
-        if (itemToRead.content) {
-            newOutputLines.push(...itemToRead.content.split('\n'));
-        } else if (itemToRead.handle && itemToRead.handle.kind === 'file') {
-            try {
-                const fsFileHandle = itemToRead.handle as FileSystemFileHandle;
-                const fileData = await fsFileHandle.getFile();
-                const text = await fileData.text();
-                newOutputLines.push(...text.split('\n'));
-                // Update state content if not already active, for consistency
-                if (activeFile?.path !== itemToRead.path) {
-                    setFiles(prevFiles => {
-                        const updateContentRecursive = (items: FileOrFolder[]): FileOrFolder[] =>
-                          items.map(item => {
-                            if (item.id === itemToRead.id) return { ...item, content: text };
-                            if (item.children) return { ...item, children: updateContentRecursive(item.children) };
-                            return item;
-                          });
-                        return updateContentRecursive(prevFiles);
-                      });
-                }
-
-            } catch (error) {
-                console.error("Error reading file for cat:", error);
-                newOutputLines.push(`cat: ${fileName}: Error reading file`);
-            }
-        } else {
-            newOutputLines.push(`cat: ${fileName}: Cannot read file (no content or handle)`);
-        }
-        break;
-      }
-      case 'mv': {
-        if (!openedDirectoryName || !rootDirectoryHandle) {
-          newOutputLines.push('mv: No folder open.');
-          break;
-        }
-        if (rawArgs.length < 2) {
-          newOutputLines.push('mv: missing destination operand after source');
-          newOutputLines.push(`Try: mv <oldname> <newname>`);
-          break;
-        }
-        // For simplicity, 'mv' in the terminal will assume oldname does not have spaces.
-        // newname can have spaces.
-        const oldName = rawArgs[0];
-        const newName = rawArgs.slice(1).join(' ');
-
-
-        if (oldName === '.' || oldName === '..') {
-            newOutputLines.push(`mv: cannot rename '${oldName}': Invalid source name.`);
-            break;
-        }
-        if (newName.includes('/') || newName.includes('\\')) {
-            newOutputLines.push(`mv: invalid new name '${newName}': Contains slashes. Renaming only supported within the same directory via terminal.`);
-            break;
-        }
-
-        const baseMovePath = terminalCwdPath || openedDirectoryName;
-        const fullPathToMove = oldName.startsWith(openedDirectoryName + '/') || oldName.includes('/')
-            ? (oldName.startsWith('/') ? openedDirectoryName + oldName : oldName)
-            : `${baseMovePath}/${oldName}`;
-
-        const success = await handleRenameItem(fullPathToMove, newName);
-        if (success) {
-            // Toast handles success message
-        } else {
-            // Toast handles error.
-            // newOutputLines.push(`mv: failed to rename '${oldName}' to '${newName}'.`);
-        }
-        break;
-      }
-      case 'rm': {
-        if (!openedDirectoryName || !rootDirectoryHandle) {
-          newOutputLines.push('rm: No folder open.');
-          break;
-        }
-        if (rawArgs.length === 0) {
-          newOutputLines.push('rm: missing operand');
-          break;
-        }
-
-        let targetName: string;
-        let isRecursiveDelete = false;
-
-        if (rawArgs[0] === '-rf') {
-          if (rawArgs.length < 2) {
-            newOutputLines.push('rm: missing operand after -rf');
-            break;
-          }
-          targetName = rawArgs.slice(1).join(' ');
-          isRecursiveDelete = true;
-        } else {
-          targetName = rawArgs.join(' ');
-          // Check if -rf was misplaced
-          if (targetName.includes("-rf") && !targetName.startsWith("-rf ")) {
-             newOutputLines.push('rm: -rf option must precede the target name if used and be separated by a space.');
-             break;
-          }
-        }
-
-        if (targetName === '.' || targetName === '..') {
-            newOutputLines.push(`rm: cannot remove '${targetName}': Operation not permitted or path is special.`);
-            break;
-        }
-
-        const baseDeletionPath = terminalCwdPath || openedDirectoryName;
-        const fullPathToDelete = targetName.startsWith(openedDirectoryName + '/') || targetName.includes('/')
-            ? (targetName.startsWith('/') ? openedDirectoryName + targetName : targetName)
-            : `${baseDeletionPath}/${targetName}`;
-
-        const itemToDelete = findItemByPathRecursive(files, fullPathToDelete);
-
-        if (!itemToDelete) {
-          newOutputLines.push(`rm: cannot remove '${targetName}': No such file or directory`);
-          break;
-        }
-
-        if (fullPathToDelete === openedDirectoryName) {
-            newOutputLines.push(`rm: cannot remove '${itemToDelete.name}': Operation not permitted (cannot remove root opened folder).`);
-            break;
-        }
-
-        if (itemToDelete.type === 'folder' && !isRecursiveDelete) {
-          newOutputLines.push(`rm: cannot remove '${itemToDelete.name}': Is a directory. Use -rf option.`);
-          break;
-        }
-
-        const confirmed = window.confirm(`Are you sure you want to delete "${itemToDelete.name}"${itemToDelete.type === 'folder' ? ' and all its contents' : ''}? This action cannot be undone.`);
-        if (!confirmed) {
-          newOutputLines.push(`Deletion of "${itemToDelete.name}" cancelled.`);
-          break;
-        }
-
-        const parentItemPath = getParentPath(fullPathToDelete);
-        const parentDirHandle = parentItemPath === null
-            ? rootDirectoryHandle
-            : await getDirectoryHandleByPath(parentItemPath, rootDirectoryHandle);
-
-
-        if (!parentDirHandle) {
-          newOutputLines.push(`rm: cannot remove '${itemToDelete.name}': Parent directory handle not found.`);
-          break;
-        }
-
-        try {
-          await parentDirHandle.removeEntry(itemToDelete.name, { recursive: isRecursiveDelete || itemToDelete.type === 'folder' });
-          newOutputLines.push(`Removed '${itemToDelete.name}'.`);
-          toast({ title: "Excluído", description: `"${itemToDelete.name}" was deleted successfully.` });
-
-
-          if (activeFile) {
-            if (activeFile.path === fullPathToDelete || (itemToDelete.type === 'folder' && activeFile.path.startsWith(fullPathToDelete + '/'))) {
-              setActiveFile(null);
-              setEditorContent('');
-            }
-          }
-
-          const pathToRefresh = parentItemPath === null ? openedDirectoryName : parentItemPath;
-          await refreshDirectoryInState(pathToRefresh, parentDirHandle);
-
-        } catch (error: any) {
-          console.error("Error deleting item via rm:", error);
-          newOutputLines.push(`rm: cannot remove '${itemToDelete.name}': ${error.message || 'Permission denied or item in use.'}`);
-           const pathToRefreshOnError = parentItemPath === null ? openedDirectoryName : parentItemPath;
-           if (pathToRefreshOnError && parentDirHandle) await refreshDirectoryInState(pathToRefreshOnError, parentDirHandle);
-        }
-        break;
-      }
-      case 'clear':
-        setTerminalOutput([`Terminal cleared. Type "help" for available commands.`]);
-        // Add a slight delay for the prompt to reappear correctly after clearing.
-        setTimeout(() => setTerminalOutput(prev => [...prev, `${getTerminalPromptDisplay()} `]),0);
-        return; // Return early to avoid adding prompt twice
-      default:
-        newOutputLines.push(`Command not found: ${cmd}. Type "help" for available commands.`);
-    }
-
-    // Add new output lines and then the prompt for the next command.
-    // Ensure prompt is added after a slight delay if other operations are async or take time.
-    setTimeout(() => {
-        if (newOutputLines.length > 0) {
-            setTerminalOutput(prev => [...prev, ...newOutputLines, `${getTerminalPromptDisplay()} `]);
-        } else {
-             // If no new output lines (e.g. successful mv), still add the prompt
-             setTerminalOutput(prev => [...prev, `${getTerminalPromptDisplay()} `]);
-        }
-    }, 100); // A small delay can help ensure state updates propagate if needed
-
-  }, [files, openedDirectoryName, terminalCwdPath, getTerminalPromptDisplay, toast, handleCreateFileSystemItemInternal, handleSelectFile, rootDirectoryHandle, activeFile, getDirectoryHandleByPath, refreshDirectoryInState, handleRenameItem]);
-
-  const handleTerminalTabPress = useCallback(async (currentFullInput: string): Promise<string | null> => {
-    const originalInputForPrompt = currentFullInput;
-  
-    const inputEndsWithSpace = currentFullInput.endsWith(' ');
-    const parts = currentFullInput.trim().split(/\s+/).filter(p => p.length > 0);
-  
-    if (parts.length === 0 || (parts.length === 1 && !inputEndsWithSpace)) {
-      const commandPrefix = parts[0] || "";
-      const matchingCommands = KNOWN_COMMANDS.filter(cmd => cmd.startsWith(commandPrefix));
-  
-      if (matchingCommands.length === 1) {
-        return matchingCommands[0] + ' ';
-      } else if (matchingCommands.length > 0) {
-        setTerminalOutput(prev => [...prev, `\n${matchingCommands.join('  ')}`, `${getTerminalPromptDisplay()} ${originalInputForPrompt}`]);
-        return originalInputForPrompt;
-      }
-      return originalInputForPrompt;
-    }
-  
-    const commandName = parts[0] as CommandName;
-    if (COMMANDS_TAKING_ARGS.includes(commandName) || (commandName === 'ls' && parts.length >=1) ) {
-      // For argument completion, we need to reconstruct the current argument prefix,
-      // especially if it contains spaces.
-      let argPrefix = "";
-      if (!inputEndsWithSpace) {
-        const commandAndSpaceLength = commandName.length + (parts.length > 1 ? 1:0); // +1 for the space after command
-        const allArgsString = currentFullInput.substring(commandAndSpaceLength);
-        // The actual prefix for the *last* argument part
-        argPrefix = parts[parts.length-1];
-      }
-
-
-      const dirToListPath = terminalCwdPath === null ? openedDirectoryName : terminalCwdPath;
-      if (!dirToListPath && openedDirectoryName === null) {
-          if (inputEndsWithSpace && KNOWN_COMMANDS.includes(commandName as CommandName)) {
-              setTerminalOutput(prev => [...prev, `Cannot suggest arguments: No folder open.`, `${getTerminalPromptDisplay()} ${originalInputForPrompt}`]);
-          }
-          return originalInputForPrompt;
-      }
-      
-      let itemsInCwd: FileOrFolder[] = [];
-      if (dirToListPath === openedDirectoryName && openedDirectoryName !== null) {
-          itemsInCwd = files;
-      } else if (dirToListPath) {
-          const cwdItem = findItemByPathRecursive(files, dirToListPath);
-          if (cwdItem?.type === 'folder' && cwdItem.children) {
-              itemsInCwd = cwdItem.children;
-          }
-      } else if (openedDirectoryName === null && commandName === 'ls' && argPrefix === "") {
-           setTerminalOutput(prev => [...prev, `No folder open.`, `${getTerminalPromptDisplay()} ${originalInputForPrompt}`]);
-           return originalInputForPrompt;
-      }
-  
-      const matchingItems = itemsInCwd.filter(item => item.name.startsWith(argPrefix));
-  
-      if (matchingItems.length === 1) {
-        const matchedItem = matchingItems[0];
-        // Reconstruct the input up to the part we are completing
-        const lastPartIndex = currentFullInput.lastIndexOf(argPrefix);
-        const baseInput = currentFullInput.substring(0, lastPartIndex);
-        
-        let completedValue = baseInput + matchedItem.name;
-        completedValue += (matchedItem.type === 'folder' ? '/' : ' ');
-        return completedValue;
-      } else if (matchingItems.length > 0) {
-        const suggestionNames = matchingItems.map(item => item.name + (item.type === 'folder' ? '/' : ''));
-        setTerminalOutput(prev => [...prev, `\n${suggestionNames.join('  ')}`, `${getTerminalPromptDisplay()} ${originalInputForPrompt}`]);
-        return originalInputForPrompt;
-      }
-    }
-    return originalInputForPrompt;
-  }, [files, openedDirectoryName, terminalCwdPath, getTerminalPromptDisplay, setTerminalOutput]);
-
-
   const handleGenerateFromComment = async (comment: string, existingCode: string) => {
     toast({ title: "AI", description: "Gerando código do comentário..." });
     try {
@@ -1237,13 +809,8 @@ export default function IdePage() {
             onCompleteFromContext={handleCompleteFromContext}
             fileName={activeFile?.name || (files.length === 0 && !openedDirectoryName ? "No file open" : (openedDirectoryName && !activeFile ? (openedDirectoryName.split('/').pop() || openedDirectoryName) : "Select a file"))}
           />
-          <TerminalResizableWrapper initialHeight={180} minHeight={80} maxHeight={400}>
-            <IntegratedTerminal
-              output={terminalOutput}
-              onCommandSubmit={handleCommandSubmit}
-              currentPromptGetter={getTerminalPromptDisplay}
-              onTabPress={handleTerminalTabPress}
-            />
+          <TerminalResizableWrapper initialHeight={220} minHeight={80} maxHeight={500}>
+            <IntegratedTerminal key={terminalCwd} />
           </TerminalResizableWrapper>
         </div>
         <AiChatPanel 

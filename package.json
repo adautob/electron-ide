@@ -46,6 +46,7 @@
     "genkit": "1.8.0",
     "lucide-react": "^0.475.0",
     "next": "15.3.3",
+    "node-pty": "1.0.0",
     "openai": "^4.52.7",
     "prismjs": "^1.29.0",
     "react": "^18.3.1",
@@ -56,6 +57,9 @@
     "recharts": "^2.15.1",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
+    "xterm": "5.5.0",
+    "xterm-addon-fit": "0.8.0",
+    "xterm-react": "3.0.6",
     "zod": "^3.24.2"
   },
   "devDependencies": {
