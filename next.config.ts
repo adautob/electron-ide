@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -8,6 +9,13 @@ const nextConfig: NextConfig = {
   },
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  webpack: (config) => {
+    // This is to solve a warning with handlebars and genkit:
+    // "require.extensions is not supported by webpack. Use a loader instead."
+    // By marking handlebars as external, we prevent webpack from trying to bundle it.
+    config.externals.push('handlebars');
+    return config;
   },
   images: {
     remotePatterns: [
