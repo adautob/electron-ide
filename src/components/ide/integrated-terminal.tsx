@@ -20,16 +20,14 @@ const terminalOptions: ITerminalOptions = {
 
 export function IntegratedTerminal() {
   const xtermRef = useRef<XTerm>(null);
-  const fitAddon = useRef(new FitAddon());
   const terminalWrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Ensure this only runs on the client and the API is available
+    // This effect handles the entire lifecycle of the terminal and its addons.
     if (typeof window !== 'undefined' && window.electron && xtermRef.current) {
       const term = xtermRef.current.terminal;
-
-      // Load addon
-      term.loadAddon(fitAddon.current);
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
 
       // Start the pseudo-terminal process in the Electron main process
       window.electron.ptySpawn({});
@@ -50,11 +48,11 @@ export function IntegratedTerminal() {
       });
       
       // Fit the terminal to its container
-      fitAddon.current.fit();
+      fitAddon.fit();
 
       // Handle resize events
       const resizeObserver = new ResizeObserver(() => {
-        fitAddon.current.fit();
+        fitAddon.fit();
       });
 
       if (terminalWrapperRef.current) {
@@ -89,7 +87,6 @@ export function IntegratedTerminal() {
       <XTerm
         ref={xtermRef}
         options={terminalOptions}
-        addons={[fitAddon.current]}
       />
     </div>
   );
