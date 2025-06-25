@@ -1,8 +1,7 @@
 
 // electron-main.js
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const os = require('os');
 
 async function createWindow() {
   // Dynamically import electron-is-dev
@@ -14,11 +13,10 @@ async function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      // preload: path.join(__dirname, 'preload.js') // No longer needed for the simulated terminal
+      preload: path.join(__dirname, 'preload.js')
     },
     icon: path.join(__dirname, 'public/favicon.ico')
   });
-
 
   // Electron will always load from the Next.js server (dev or prod) on port 9002
   const startUrl = 'http://localhost:9002';

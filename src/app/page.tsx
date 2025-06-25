@@ -48,8 +48,6 @@ export default function IdePage() {
   const [rootDirectoryHandle, setRootDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const { toast } = useToast();
 
-  const [terminalKey, setTerminalKey] = useState<string | number>(1);
-
   const processDirectory = async (directoryHandle: FileSystemDirectoryHandle, currentPath: string = ''): Promise<FileOrFolder[]> => {
     const entries: FileOrFolder[] = [];
     const sortedSystemEntries = [];
@@ -116,10 +114,7 @@ export default function IdePage() {
       setEditorContent('');
       setOpenedDirectoryName(directoryHandle.name);
       
-      // Reset the terminal by changing its key
-      setTerminalKey(Date.now());
-
-      toast({ title: "Pasta Aberta", description: `Folder "${directoryHandle.name}" loaded. Terminal reset.` });
+      toast({ title: "Pasta Aberta", description: `Folder "${directoryHandle.name}" loaded.` });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         console.log("Folder selection cancelled by user.");
@@ -805,7 +800,7 @@ export default function IdePage() {
             fileName={activeFile?.name || (files.length === 0 && !openedDirectoryName ? "No file open" : (openedDirectoryName && !activeFile ? (openedDirectoryName.split('/').pop() || openedDirectoryName) : "Select a file"))}
           />
           <TerminalResizableWrapper initialHeight={220} minHeight={80} maxHeight={500}>
-            <IntegratedTerminal key={terminalKey} files={files} openedDirectoryName={openedDirectoryName}/>
+            <IntegratedTerminal files={files} openedDirectoryName={openedDirectoryName} />
           </TerminalResizableWrapper>
         </div>
         <AiChatPanel 
