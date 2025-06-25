@@ -26,14 +26,34 @@ Este é um protótipo de um IDE desktop construído com Next.js, ShadCN UI, Tail
     Isso instalará as dependências do Next.js e do Electron.
 
 3.  **Configure as Variáveis de Ambiente para IA (Genkit):**
-    As funcionalidades de IA utilizam Genkit com o plugin do Google AI. Você precisará de uma chave de API do Google Cloud.
+    As funcionalidades de IA utilizam Genkit e podem ser configuradas para usar **OpenRouter** (recomendado) ou a API do Google AI.
 
-    *   Crie um arquivo chamado `.env.local` na raiz do projeto.
-    *   Adicione sua chave de API do Google a este arquivo:
+    *   Crie um arquivo chamado `.env.local` na raiz do projeto, copiando o arquivo `.env`.
+    *   Configure suas chaves de API neste arquivo. O OpenRouter terá prioridade se a chave for fornecida.
+
+    **Opção 1: OpenRouter (Recomendado)**
+    Use o [OpenRouter](https://openrouter.ai/) para acessar uma variedade de modelos de diferentes provedores com uma única chave de API.
+
+    *   Adicione sua chave de API do OpenRouter e, opcionalmente, o nome do modelo:
+        ```env
+        # Obtenha uma chave em https://openrouter.ai/
+        OPENROUTER_API_KEY=sua-chave-openrouter-aqui
+        
+        # Opcional: Especifique o modelo a ser usado (ex: openai/gpt-4o, google/gemini-pro)
+        # Se não for especificado, o padrão será 'openai/gpt-4o'.
+        OPENROUTER_MODEL_NAME=openai/gpt-4o
+        ```
+
+    **Opção 2: Google AI (Alternativa)**
+    Se você preferir usar a API do Google diretamente:
+
+    *   Adicione sua chave de API do Google:
         ```env
         GOOGLE_API_KEY=SUA_CHAVE_DE_API_AQUI
         ```
-    *   **Nota:** Obtenha sua chave de API no [Google Cloud Console](https://console.cloud.google.com/). Certifique-se de que a "Generative Language API" (ou Vertex AI API) esteja ativada para o seu projeto. O arquivo `.env.local` é ignorado pelo Git para proteger sua chave.
+    *   **Nota:** Obtenha sua chave de API no [Google Cloud Console](https://console.cloud.google.com/). Certifique-se de que a "Generative Language API" (ou Vertex AI API) esteja ativada para o seu projeto.
+
+    **Importante:** O arquivo `.env.local` é ignorado pelo Git para proteger suas chaves.
 
 ## Executando Localmente (Modo de Desenvolvimento)
 

@@ -40,7 +40,6 @@ export async function chatWithAI(input: ChatInput): Promise<ChatOutput> {
 
 const chatPrompt = ai.definePrompt({
   name: 'ideChatPrompt',
-  model: 'googleai/gemini-2.0-flash',
   input: { schema: ChatInputSchema },
   config: {
     maxOutputTokens: 8192,
@@ -50,7 +49,7 @@ const chatPrompt = ai.definePrompt({
 **1. MODO DE CONVERSA**
 - Use este modo para perguntas gerais (ex: "Como funciona o hook \`useEffect\`?"), pedidos de informação sobre o projeto (ex: "Quais arquivos existem?"), ou conversas casuais.
 - Sua resposta deve ser uma conversa normal.
-- Se precisar mostrar um pequeno trecho de código como exemplo, use blocos de código Markdown padrão com três crases (\\\`\\\`\\\`).
+- Se precisar mostrar um pequeno trecho de código como exemplo, use blocos de código Markdown padrão com três crases (\`\`\`).
 - **NÃO GERE** o bloco \`[START_FILE]\` neste modo.
 
 **2. MODO DE MODIFICAÇÃO DE ARQUIVO**
@@ -63,7 +62,7 @@ const chatPrompt = ai.definePrompt({
         -   Começo do bloco: \`[START_FILE:caminho/completo/do/arquivo.ext]\`
         -   Conteúdo: O conteúdo completo e final do arquivo.
         -   Fim do bloco: \`[END_FILE]\`
-        -   **REGRA CRÍTICA:** O conteúdo dentro de \`[START_FILE]\` **NUNCA** deve ser envolvido por crases (\\\`\\\`\\\`).
+        -   **REGRA CRÍTICA:** O conteúdo dentro de \`[START_FILE]\` **NUNCA** deve ser envolvido por crases (\`\`\`).
         -   **Para múltiplos arquivos,** gere um bloco \`[START_FILE]...[END_FILE]\` para cada arquivo, um após o outro.
 
 **Exemplo de Resposta CORRETA para modificação:**
