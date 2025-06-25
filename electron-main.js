@@ -1,4 +1,3 @@
-
 // electron-main.js
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
@@ -13,7 +12,7 @@ async function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      // No preload script needed for the simulated terminal
     },
     icon: path.join(__dirname, 'public/favicon.ico')
   });

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -800,7 +799,10 @@ export default function IdePage() {
             fileName={activeFile?.name || (files.length === 0 && !openedDirectoryName ? "No file open" : (openedDirectoryName && !activeFile ? (openedDirectoryName.split('/').pop() || openedDirectoryName) : "Select a file"))}
           />
           <TerminalResizableWrapper initialHeight={220} minHeight={80} maxHeight={500}>
-            <IntegratedTerminal files={files} openedDirectoryName={openedDirectoryName} />
+            <IntegratedTerminal 
+              files={files}
+              openedDirectoryName={openedDirectoryName}
+            />
           </TerminalResizableWrapper>
         </div>
         <AiChatPanel 
