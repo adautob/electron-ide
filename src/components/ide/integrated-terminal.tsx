@@ -1,163 +1,137 @@
 
 "use client";
 
-import type { FileOrFolder } from '@/types';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useLayoutEffect } from 'react';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { useTheme } from '@/contexts/theme-provider';
 
-const HELP_MESSAGE = `Simulated Shell. Available commands:
-- ls [-a]: List files in the current directory. -a shows hidden files.
-- cd [dir]: Change directory. Use '..' to go up.
-- pwd: Print working directory.
-- cat [file]: Display content of a file.
-- clear: Clear the terminal screen.
-- help: Show this help message.
-- echo [...args]: Print arguments to the console.
-`;
-
-const findItemByPath = (items: FileOrFolder[], path: string): FileOrFolder | null => {
-  for (const item of items) {
-    if (item.path === path) return item;
-    if (item.children) {
-      const found = findItemByPath(item.children, path);
-      if (found) return found;
-    }
+// Define the structure of the API exposed by preload.js
+declare global {
+  interface Window {
+    electronAPI: {
+      pty: {
+        onData: (callback: (data: string) => void) => void;
+      };
+      writeToPty: (data: string) => void;
+      resizePty: (size: { cols: number; rows: number }) => void;
+      removeAllListeners: () => void;
+    };
   }
-  return null;
-};
-
-interface SimulatedTerminalProps {
-  allFiles: FileOrFolder[];
-  openedDirectoryName: string | null;
 }
 
-export function IntegratedTerminal({ allFiles, openedDirectoryName }: SimulatedTerminalProps) {
-  const [history, setHistory] = useState<string[]>(['Electron IDE Simulated Terminal. Type "help" for commands.']);
-  const [currentLine, setCurrentLine] = useState('');
-  const [cwd, setCwd] = useState(openedDirectoryName || '/');
-  const endOfTerminalRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+const darkTheme = {
+  background: '#1e1e1e',
+  foreground: '#d4d4d4',
+  cursor: '#d4d4d4',
+  selectionBackground: '#264f78',
+  black: '#000000',
+  red: '#cd3131',
+  green: '#0dbc79',
+  yellow: '#e5e510',
+  blue: '#2472c8',
+  magenta: '#bc3fbc',
+  cyan: '#11a8cd',
+  white: '#e5e5e5',
+  brightBlack: '#666666',
+  brightRed: '#f14c4c',
+  brightGreen: '#23d186',
+  brightYellow: '#f5f543',
+  brightBlue: '#3b8eea',
+  brightMagenta: '#d670d6',
+  brightCyan: '#29b8db',
+  brightWhite: '#e5e5e5',
+};
 
-  useEffect(() => {
-    setCwd(openedDirectoryName || '/');
-    setHistory(['Electron IDE Simulated Terminal. Type "help" for commands.']);
-  }, [openedDirectoryName]);
+const lightTheme = {
+    background: '#ffffff',
+    foreground: '#000000',
+    cursor: '#000000',
+    selectionBackground: '#aaccff',
+    black: '#000000',
+    red: '#c51e1e',
+    green: '#13a10e',
+    yellow: '#c19c00',
+    blue: '#0037da',
+    magenta: '#881798',
+    cyan: '#3a96dd',
+    white: '#cccccc',
+    brightBlack: '#767676',
+    brightRed: '#e74848',
+    brightGreen: '#16c60c',
+    brightYellow: '#f9f1a5',
+    brightBlue: '#3b78ff',
+    brightMagenta: '#b4009e',
+    brightCyan: '#61d6d6',
+    brightWhite: '#f2f2f2',
+};
 
-  useEffect(() => {
-    endOfTerminalRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [history]);
-  
-  const focusInput = () => inputRef.current?.focus();
+export function IntegratedTerminal() {
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const { theme } = useTheme();
 
-  const processCommand = (command: string) => {
-    const [cmd, ...args] = command.trim().split(' ').filter(Boolean);
-    let output = '';
-
-    if (!openedDirectoryName) {
-      return `Error: No folder is currently open.`;
+  useLayoutEffect(() => {
+    if (!terminalRef.current || typeof window.electronAPI === 'undefined') {
+      return;
     }
 
-    const currentDirectoryNode = findItemByPath(allFiles, cwd);
+    const term = new Terminal({
+      cursorBlink: true,
+      fontFamily: '"Source Code Pro", monospace',
+      fontSize: 14,
+      theme: theme === 'dark' ? darkTheme : lightTheme,
+      allowProposedApi: true,
+    });
+    
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    
+    term.open(terminalRef.current);
+    fitAddon.fit();
 
-    switch (cmd) {
-      case 'help':
-        output = HELP_MESSAGE;
-        break;
-      case 'pwd':
-        output = cwd;
-        break;
-      case 'clear':
-        setHistory([]);
-        return;
-      case 'echo':
-        output = args.join(' ');
-        break;
-      case 'ls':
-        if (!currentDirectoryNode || currentDirectoryNode.type !== 'folder') {
-          output = 'Error: Current path is not a directory.';
-        } else {
-          const showAll = args.includes('-a');
-          const children = currentDirectoryNode.children || [];
-          output = children
-            .filter(item => showAll || !item.name.startsWith('.'))
-            .map(item => `${item.type === 'folder' ? 'd' : '-'} ${item.name}`)
-            .join('\n');
-        }
-        break;
-      case 'cd':
-        const targetDir = args[0];
-        if (!targetDir) {
-          output = 'Usage: cd [directory]';
-        } else if (targetDir === '..') {
-          if (cwd === openedDirectoryName) {
-            output = 'Error: Already at the root directory.';
-          } else {
-            const newCwd = cwd.substring(0, cwd.lastIndexOf('/'));
-            setCwd(newCwd || openedDirectoryName);
-          }
-        } else {
-          const newPath = `${cwd}/${targetDir}`;
-          const targetNode = findItemByPath(allFiles, newPath);
-          if (targetNode && targetNode.type === 'folder') {
-            setCwd(newPath);
-          } else {
-            output = `Error: Directory not found: ${targetDir}`;
-          }
-        }
-        break;
-      case 'cat':
-        const targetFile = args[0];
-        if (!targetFile) {
-            output = 'Usage: cat [file]';
-        } else {
-            const filePath = `${cwd}/${targetFile}`;
-            const fileNode = findItemByPath(allFiles, filePath);
-            if (fileNode && fileNode.type === 'file') {
-                if (fileNode.content !== undefined && fileNode.content !== null) {
-                    output = fileNode.content;
-                } else {
-                    output = `Error: File content for ${targetFile} is not loaded. Please open it in the editor first.`;
-                }
-            } else {
-                output = `Error: File not found or is a directory: ${targetFile}`;
-            }
-        }
-        break;
-      default:
-        if (cmd) output = `Command not found: ${cmd}`;
-        break;
-    }
-    setHistory(h => [...h, `$ ${command}`, ...(output ? [output] : [])]);
-  };
+    // --- IPC Communication ---
+    // Handle incoming data from the main process PTY and write to terminal
+    window.electronAPI.pty.onData((data) => {
+      term.write(data);
+    });
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      processCommand(currentLine);
-      setCurrentLine('');
-    }
-  };
+    // Handle user input in the terminal and send to the main process PTY
+    const onDataDisposable = term.onData((data) => {
+      window.electronAPI.writeToPty(data);
+    });
+    
+    // --- Resizing Logic ---
+    const resizeObserver = new ResizeObserver(() => {
+      try {
+        fitAddon.fit();
+      } catch (err) {
+        console.error("Error fitting terminal on resize:", err);
+      }
+    });
+    
+    resizeObserver.observe(terminalRef.current);
+    
+    const onResizeDisposable = term.onResize(({ cols, rows }) => {
+      window.electronAPI.resizePty({ cols, rows });
+    });
+    
+    // Initial resize
+    window.electronAPI.resizePty({ cols: term.cols, rows: term.rows });
 
-  return (
-    <div
-      className="h-full w-full bg-[#1e1e1e] text-white font-code text-sm p-3 overflow-y-auto"
-      onClick={focusInput}
-    >
-      {history.map((line, index) => (
-        <pre key={index} className="whitespace-pre-wrap break-words">{line}</pre>
-      ))}
-      <div className="flex">
-        <span className="shrink-0">$ </span>
-        <input
-          ref={inputRef}
-          type="text"
-          value={currentLine}
-          onChange={(e) => setCurrentLine(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="bg-transparent border-none text-white focus:outline-none w-full pl-2"
-          autoFocus
-        />
-      </div>
-      <div ref={endOfTerminalRef} />
-    </div>
-  );
+
+    // --- Cleanup ---
+    return () => {
+      onDataDisposable.dispose();
+      onResizeDisposable.dispose();
+      term.dispose();
+      fitAddon.dispose();
+      resizeObserver.disconnect();
+      // Important: Remove listeners to prevent memory leaks on component re-mount
+      if (window.electronAPI && typeof window.electronAPI.removeAllListeners === 'function') {
+         window.electronAPI.removeAllListeners();
+      }
+    };
+  }, [theme]); // Rerun effect if theme changes
+
+  return <div ref={terminalRef} className="h-full w-full" />;
 }
