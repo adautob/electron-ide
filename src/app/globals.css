@@ -2,9 +2,6 @@
 /* Import PrismJS theme for syntax highlighting */
 @import 'prismjs/themes/prism-okaidia.css';
 
-/* Import Xterm.js theme - REMOVED as it's no longer used */
-/* @import '@xterm/xterm/css/xterm.css'; */
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -192,8 +189,3 @@ html[data-theme="light"] .token.cdata {
 .code-editor-instance .line-numbers-textarea {
   padding-left: 4.5em !important;
 }
-
-/* --- STYLES FOR XTERM.JS --- REMOVED, no longer needed */
-/* .xterm .xterm-viewport {
-  background-color: hsl(var(--primary)) !important;
-} */

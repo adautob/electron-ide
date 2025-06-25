@@ -2,12 +2,8 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const os = require('os');
-// const pty = require('node-pty'); // Removed for simulated terminal
 
 let mainWindow;
-
-// Determine shell based on OS - Not needed for simulated terminal
-// const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
 
 async function createWindow() {
   const { default: isDev } = await import('electron-is-dev');
@@ -29,8 +25,6 @@ async function createWindow() {
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
-
-  // Terminal logic is now handled entirely in the renderer process
 }
 
 app.whenReady().then(async () => {
