@@ -48,7 +48,7 @@ export default function IdePage() {
   const [rootDirectoryHandle, setRootDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const { toast } = useToast();
 
-  const [terminalCwd, setTerminalCwd] = useState<string | undefined>(undefined);
+  const [terminalKey, setTerminalKey] = useState<string | number>(1);
 
   const processDirectory = async (directoryHandle: FileSystemDirectoryHandle, currentPath: string = ''): Promise<FileOrFolder[]> => {
     const entries: FileOrFolder[] = [];
@@ -116,13 +116,8 @@ export default function IdePage() {
       setEditorContent('');
       setOpenedDirectoryName(directoryHandle.name);
       
-      // IMPORTANT: Cannot get the real OS path from a FileSystemDirectoryHandle for security reasons.
-      // The terminal will spawn in the user's home directory by default.
-      // We are passing the directory *name* as the CWD, but this is a limitation.
-      // A more robust solution would require a different method of folder selection.
-      // For now, we will just spawn a new terminal in the default location.
-      window.electron.ptySpawn({ cwd: undefined }); // Let main process decide CWD
-      setTerminalCwd(directoryHandle.name); // For display/context purposes only.
+      // Reset the terminal by changing its key
+      setTerminalKey(Date.now());
 
       toast({ title: "Pasta Aberta", description: `Folder "${directoryHandle.name}" loaded. Terminal reset.` });
     } catch (error) {
@@ -810,7 +805,7 @@ export default function IdePage() {
             fileName={activeFile?.name || (files.length === 0 && !openedDirectoryName ? "No file open" : (openedDirectoryName && !activeFile ? (openedDirectoryName.split('/').pop() || openedDirectoryName) : "Select a file"))}
           />
           <TerminalResizableWrapper initialHeight={220} minHeight={80} maxHeight={500}>
-            <IntegratedTerminal key={terminalCwd} />
+            <IntegratedTerminal key={terminalKey} />
           </TerminalResizableWrapper>
         </div>
         <AiChatPanel 
