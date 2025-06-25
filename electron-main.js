@@ -1,12 +1,13 @@
 // electron-main.js
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const os = require('os');
+
+let mainWindow;
 
 async function createWindow() {
   const { default: isDev } = await import('electron-is-dev');
 
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     webPreferences: {
@@ -18,10 +19,10 @@ async function createWindow() {
   });
 
   const startUrl = 'http://localhost:9002';
-  win.loadURL(startUrl);
+  mainWindow.loadURL(startUrl);
 
   if (isDev) {
-    win.webContents.openDevTools();
+    mainWindow.webContents.openDevTools();
   }
 }
 

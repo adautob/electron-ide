@@ -1,11 +1,19 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // Expose a secure API to the renderer process (the Next.js app)
-// We are keeping the shell of the API for now, but the functions do nothing
-// as the real terminal is disabled to prevent build errors.
+// We keep the API shape but make them no-ops to avoid errors if they are called.
 contextBridge.exposeInMainWorld('electronAPI', {
-  onTerminalData: () => {},
-  sendToTerminal: () => {},
-  resizeTerminal: () => {},
-  removeAllListeners: () => {}
+  onTerminalData: (callback) => {
+    // This function must return a cleanup function.
+    return () => {};
+  },
+  sendToTerminal: (data) => {
+    // No-op
+  },
+  resizeTerminal: (size) => {
+    // No-op
+  },
+  removeAllListeners: (channel) => {
+    // No-op
+  }
 });
