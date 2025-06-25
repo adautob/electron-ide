@@ -8,23 +8,29 @@ let defaultModel: string | undefined;
 
 // OpenRouter has priority if the API key is provided.
 if (process.env.OPENROUTER_API_KEY) {
-  // When using OpenRouter, we will ONLY configure the openAI plugin.
-  // This simplifies routing and avoids the prefix issue.
   plugins = [
     openAI({
-      // No custom 'name' is needed as it's the only generator plugin.
+      name: 'openrouter', // Give it a name to require a prefix
       apiKey: process.env.OPENROUTER_API_KEY,
       baseURL: 'https://openrouter.ai/api/v1',
       defaultHeaders: {
         'HTTP-Referer': 'https://github.com/firebase/genkit-samples',
         'X-Title': 'Electron IDE',
       },
-      // No modelMapper is needed as the model name will be passed directly.
-    })
+      modelMapper: (model: ModelReference<any> | string) => {
+        const modelName = typeof model === 'string' ? model : model.name;
+        if (modelName.startsWith('openrouter/')) {
+          // Return the model name string without the prefix.
+          return modelName.substring('openrouter/'.length);
+        }
+        return modelName;
+      },
+    }),
   ];
 
-  // The model name is used directly, without any prefixes.
-  defaultModel = process.env.OPENROUTER_MODEL_NAME || 'openai/gpt-4o-mini';
+  // We add the prefix here so Genkit knows which plugin to use.
+  // The modelMapper will remove it before sending to the API.
+  defaultModel = `openrouter/${process.env.OPENROUTER_MODEL_NAME || 'openai/gpt-4o-mini'}`;
   console.log(`INFO: Using OpenRouter. Default model set to: ${defaultModel}`);
 
 } else if (process.env.GOOGLE_API_KEY) {
